@@ -1,0 +1,8 @@
+data/
+__pycache__
+results/
+.env
+
+
+flattened_repo.txt
+repo_structure.yaml
