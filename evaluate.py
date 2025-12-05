@@ -1,3 +1,5 @@
+from datetime import datetime
+import os
 # evaluate.py
 import os
 import json
@@ -16,7 +18,7 @@ load_dotenv()
 from core.evaluator import evaluate_tool_calling_from_predictions
 from utils.io import save_json, save_csv
 from config.tools import ALL_TOOLS
-
+from utils.misc import get_model_safe_name
 
 def load_test_cases(path: str) -> list:
     """Load test cases from JSON file."""
@@ -49,15 +51,63 @@ def load_predictions(path: str) -> list:
                 return data.get("results", data.get("predictions", []))
             else:
                 raise ValueError(f"Unexpected data format in {path}")
+def format_summary(metrics: dict) -> str:
+    m = metrics
+    tc = m['tool_call_level']
+    name_acc = m['tool_name_accuracy']
+    field_info = m.get('argument_field_level', {})
 
+    lines = []
+    lines.append("=" * 60)
+    lines.append("🏆 TOOL-CALLING EVALUATION SUMMARY")
+    lines.append("=" * 60)
+    lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(f"Model:     {os.getenv('MODEL', 'unknown')}")
+    lines.append(f"Test File: {os.getenv('TEST_FILE', 'unknown')}")
+    lines.append("-" * 60)
+    lines.append(f"Total Cases:              {m['total_cases']}")
+    lines.append(f"Exact Match Accuracy:     {m['exact_match_accuracy']:.2%}")
+    lines.append("")
+    lines.append("📊 Tool Name Accuracy:")
+    lines.append(f"   Precision:             {name_acc['precision']:.2%}")
+    lines.append(f"   Recall:                {name_acc['recall']:.2%}")
+    lines.append(f"   F1:                    {name_acc['f1_score']:.2%}")
+    lines.append("")
+    lines.append("📊 Argument Accuracy:")
+    lines.append(f"   Call-level (if name✓): {m['argument_accuracy_given_correct_name']:.2%}")
+    if field_info:
+        lines.append(f"   Field-level:           {field_info['accuracy']:.2%} "
+                     f"({field_info['total_matched_fields']}/{field_info['total_expected_fields']} fields)")
+    lines.append("")
+    lines.append("📊 Strict Tool-call Level (exact match):")
+    lines.append(f"   TP={tc['true_positives']} FP={tc['false_positives']} FN={tc['false_negatives']}")
+    lines.append(f"   Precision:             {tc['precision']:.2%}")
+    lines.append(f"   Recall:                {tc['recall']:.2%}")
+    lines.append(f"   F1:                    {tc['f1_score']:.2%}")
+    lines.append("")
+    lines.append("✅ Full results saved as JSON & CSV in this directory.")
+
+    return "\n".join(lines)
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate precomputed tool-calling predictions")
     parser.add_argument("--test_file", default="data/test_cases.json", help="Test cases JSON")
-    parser.add_argument("--predictions", default="results/predictions.ndjson", help="Precomputed predictions (NDJSON/JSON)")
-    parser.add_argument("--output_dir", default="results", help="Directory to save eval results")
+    parser.add_argument("--predictions", default=None, help="Precomputed predictions (default: results/<MODEL>/predictions.ndjson)")
+    parser.add_argument("--output_dir", default=None, help="Dir to save eval (default: results/<MODEL>/)")
     parser.add_argument("--verbose", action="store_true", help="Print per-case results")
     args = parser.parse_args()
+
+    # Resolve model-based defaults
+    model_name = get_model_safe_name()
+    default_result_dir = f"results/{model_name}"
+
+    # Set predictions path
+    if args.predictions is None:
+        args.predictions = f"{default_result_dir}/predictions.ndjson"
+
+    # Set output_dir
+    if args.output_dir is None:
+        args.output_dir = default_result_dir
 
     # Ensure output dir exists
     os.makedirs(args.output_dir, exist_ok=True)
@@ -84,43 +134,26 @@ def main():
         logger.error(f"❌ Evaluation failed: {e}")
         raise
 
+    # Print summary
+    m = eval_result["metrics"]
     # Save results
     try:
         json_path = save_json(eval_result, args.output_dir, "toolcall_eval")
         csv_path = save_csv(eval_result["results"], args.output_dir, "toolcall_eval")
+        # 👇 Add this:
+        summary_text = format_summary(m)
+        summary_path = os.path.join(args.output_dir, "summary.txt")
+        with open(summary_path, "w", encoding="utf-8") as f:
+            f.write(summary_text)
     except Exception as e:
         logger.error(f"❌ Failed to save results: {e}")
         exit(1)
 
-    # Print summary
-    m = eval_result["metrics"]
-    print("\n" + "="*60)
-    print("🏆 EVALUATION SUMMARY")
-    print("="*60)
-    print(f"Total Cases:              {m['total_cases']}")
-    print(f"Exact Match Accuracy:     {m['exact_match_accuracy']:.2%}")
-    print()
-    print("📊 Tool Name Accuracy:")
-    print(f"   Precision:             {m['tool_name_accuracy']['precision']:.2%}")
-    print(f"   Recall:                {m['tool_name_accuracy']['recall']:.2%}")
-    print(f"   F1:                    {m['tool_name_accuracy']['f1_score']:.2%}")
-    print()
-    print("📊 Argument Accuracy:")
-    print(f"   Call-level (if name✓): {m['argument_accuracy_given_correct_name']:.2%}")
-    field_info = m.get('argument_field_level', {})
-    if field_info:
-        print(f"   Field-level:           {field_info['accuracy']:.2%} ({field_info['total_matched_fields']}/{field_info['total_expected_fields']} fields)")
-    print()
-    print("📊 Strict Tool-call Level:")
-    tc = m['tool_call_level']
-    print(f"   TP={tc['true_positives']} FP={tc['false_positives']} FN={tc['false_negatives']}")
-    print(f"   Precision:             {tc['precision']:.2%}")
-    print(f"   Recall:                {tc['recall']:.2%}")
-    print(f"   F1:                    {tc['f1_score']:.2%}")
-    print()
+    # Print summary (unchanged)
+    # ... [your existing print block]
     print(f"✅ Saved full report to: {os.path.relpath(json_path)}")
     print(f"   Per-case CSV:         {os.path.relpath(csv_path)}")
-
+    print(f"   Summary text:         {os.path.relpath(summary_path)}")  # 👈 add this line
 
 if __name__ == "__main__":
     main()

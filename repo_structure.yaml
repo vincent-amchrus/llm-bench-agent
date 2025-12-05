@@ -2,6 +2,8 @@
     type: file
   - path: /requirements.txt
     type: file
+  - path: /generate_sample_test.py
+    type: file
   - path: /core
     type: directory
     contents:

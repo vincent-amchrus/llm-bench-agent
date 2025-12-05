@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from core.chat_client import chat_completion
 from config.tools import ALL_TOOLS
 from utils.misc import hash_input
+from utils.misc import get_model_safe_name
 load_dotenv()
 
 def load_test_cases(path: str) -> list:
@@ -64,10 +65,18 @@ def atomic_append_line(output_path: str, data: dict):
 def main():
     parser = argparse.ArgumentParser(description="Crash-safe, resumable inference")
     parser.add_argument("--test_file", default="data/test_cases.json", help="Test cases JSON")
-    parser.add_argument("--output", default="results/predictions.ndjson", help="NDJSON output path")
+    parser.add_argument("--output", default=None, help="NDJSON output path (default: results/<MODEL>/predictions.ndjson)")
     parser.add_argument("--system_prompt", default=None)
     parser.add_argument("--skip_on_error", action="store_true", help="Continue on inference error")
     args = parser.parse_args()
+
+    # Auto-determine output path if not provided
+    if args.output is None:
+        model_name = get_model_safe_name()
+        args.output = f"results/{model_name}/predictions.ndjson"
+
+    # Ensure output dir exists (note: dirname of file path)
+    os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
 
     # Load config
     base_url = os.getenv("BASE_URL", "http://localhost:8000/v1")
@@ -80,7 +89,6 @@ def main():
 
     # Load completed
     done_hashes = load_completed_hashes(args.output)
-    os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
 
     # Filter
     to_run = []
