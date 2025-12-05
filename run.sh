@@ -1,30 +1,9 @@
-# run.sh (final version)
-
-#!/bin/bash
-set -e
-
-# Setup
-mkdir -p data results
-
-# Optional: generate test cases if missing
-if [ ! -f "data/test_cases.json" ]; then
-  echo '[]' > data/test_cases.json
-  echo "⚠️  Created empty data/test_cases.json — please populate!"
-fi
-
-# Step 1: Inference (resumable, safe)
-echo "🚀 Running inference..."
+# 1. Run inference
 python infer.py \
-  --test_file data/tiny_test.json \
-  --output results/tiny_test/predictions.ndjson \
+  --test_file data/test_each_1.json \
   --skip_on_error
 
-# Step 2: Evaluation (separate, reproducible)
-echo "🔍 Running evaluation..."
+# 2. Run evaluation (auto finds predictions & writes to same folder)
 python evaluate.py \
-  --test_file data/tiny_test.json \
-  --predictions results/tiny_test/predictions.ndjson \
+  --test_file data/test_each_1.json \
   --verbose
-
-
-echo "✅ Done!"

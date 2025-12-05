@@ -2,14 +2,41 @@
 
 </requirements.txt>
 
+<generate_sample_test.py>
+import pandas as pd
+
+
+
+test = pd.read_json("data/english_2k4_vivi_global_function_calling_test_dataset.json")
+
+
+import pandas as pd
+
+# df is your dataframe
+# Columns: user_message, tool_calls, function
+min_each_fn = 10
+
+samples = (
+    test.groupby("function")
+      .apply(lambda g: g.sample(n=min(len(g), min_each_fn), random_state=42))
+      .reset_index(drop=True)
+)
+
+
+
+samples.to_json(f"data/test_each_{min_each_fn}.json", orient="records")
+</generate_sample_test.py>
+
 <core/evaluator.py>
+# core/evaluator.py
 import os
 import json
 from typing import List, Dict, Any
-from collections import defaultdict  # ✅ Only import once, at top
+from collections import defaultdict
 from utils.misc import hash_input
 from core.argument_matcher import ArgumentMatcher
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -17,11 +44,12 @@ def normalize_value(v):
     if isinstance(v, float):
         return round(v, 5)
     elif isinstance(v, dict):
-        return {k: normalize_value(v) for k, v in sorted(v.items())}
+        return {k: normalize_value(val) for k, val in sorted(v.items())}
     elif isinstance(v, list):
         return [normalize_value(x) for x in v]
     else:
         return v
+
 
 def normalize_tool_call(tc: Dict) -> Dict:
     return {
@@ -32,14 +60,12 @@ def normalize_tool_call(tc: Dict) -> Dict:
 
 def evaluate_tool_calling_from_predictions(
     test_cases: List[Dict[str, Any]],
-    predictions: List[Dict[str, Any]],  # ← precomputed inference results
+    predictions: List[Dict[str, Any]],
     tools: List[Dict],
     verbose: bool = False
 ) -> Dict[str, Any]:
     """
     Evaluate tool-calling using precomputed predictions — no live inference.
-    - Aligns by `index` or input hash (if index missing).
-    - Ensures deterministic reproducibility.
     """
     # Build lookup: index → prediction
     pred_by_index = {}
@@ -58,6 +84,10 @@ def evaluate_tool_calling_from_predictions(
     total_name_correct_calls = 0
     tp = fp = fn = 0
 
+    # Field-level counters
+    total_expected_fields = 0
+    total_matched_fields = 0
+
     matcher = ArgumentMatcher(
         tools_schema=tools,
         global_match_mode=os.getenv("MATCH_MODE", "semantic"),
@@ -68,29 +98,24 @@ def evaluate_tool_calling_from_predictions(
 
     for i, case in enumerate(test_cases):
         user_msg = case["user_message"]
-        expected_raw = case.get("tool_calls", case.get("expected", []))  # support both keys
+        expected_raw = case.get("tool_calls", case.get("expected", []))
         expected = [normalize_tool_call(tc) for tc in expected_raw]
 
-        # 🔍 Find matching prediction
+        # Find matching prediction
         pred_raw = None
         if i in pred_by_index:
             pred_raw = pred_by_index[i]
         else:
-            # Try hash matching (fallback for shuffled/reindexed data)
-            h = hash_input(user_msg)  # reuse from infer.py
+            h = hash_input(user_msg)
             pred_raw = pred_by_hash.get(h)
 
         if pred_raw is None:
             logger.warning(f"No prediction found for case index={i}, msg='{user_msg[:50]}...'")
             predicted = []
-            pred_tool_calls = []
+            pred_raw = {"predicted": {"tool_calls": []}, "content": "", "error": "No prediction found"}
         else:
             pred_tool_calls = pred_raw.get("predicted", {}).get("tool_calls", [])
             predicted = [normalize_tool_call(tc) for tc in pred_tool_calls]
-
-        # --- REST OF EVAL LOGIC (name/arg/F1/field metrics) ---
-        # ... [same as before: name counting, arg matching, strict match, etc.] ...
-        # (Keep everything from "Name-level analysis" onward — just use `predicted` above)
 
         # --- Name-level analysis ---
         exp_names = [tc["name"] for tc in expected]
@@ -98,7 +123,7 @@ def evaluate_tool_calling_from_predictions(
         total_expected_calls += len(exp_names)
         total_predicted_calls += len(pred_names)
 
-        exp_name_counter = defaultdict(int)   # ✅ Now works: defaultdict is the class
+        exp_name_counter = defaultdict(int)
         pred_name_counter = defaultdict(int)
         for n in exp_names:
             exp_name_counter[n] += 1
@@ -116,52 +141,68 @@ def evaluate_tool_calling_from_predictions(
         exp_by_name = defaultdict(list)
         pred_by_name = defaultdict(list)
 
-
         for tc in expected:
             exp_by_name[tc["name"]].append(tc["arguments"])
         for tc in predicted:
             pred_by_name[tc["name"]].append(tc["arguments"])
 
-        # --- Field-level argument matching (NEW) ---
-        total_expected_fields = 0
-        total_matched_fields = 0
+        # --- Field-level argument matching ---
+        case_field_sim_details = []  # Collect all field similarities for this case
+        matched_correct_args = 0
 
-        matched_correct_args = 0  # ← keep existing call-level metric
-        for name in set(exp_by_name.keys()) | set(pred_by_name.keys()):
+        for name in set(exp_by_name.keys()) & set(pred_by_name.keys()):  # Only matching names
             exp_args_list = exp_by_name[name]
             pred_args_list = pred_by_name[name]
             min_len = min(len(exp_args_list), len(pred_args_list))
-            field_sim_details = []
+
             for j in range(min_len):
                 exp_args = exp_args_list[j]
                 pred_args = pred_args_list[j]
 
-                # ➕ Get detailed field match info
+                # Get detailed field match info
                 detailed_match = matcher.match_arguments(exp_args, pred_args, name, return_scores=True)
-                field_sim_details.append({
+                case_field_sim_details.append({
+                    "tool_name": name,
+                    "call_index": j,
                     "expected_args": exp_args,
                     "predicted_args": pred_args,
                     "overall_match": detailed_match["overall_match"],
                     "field_scores": detailed_match["field_scores"]
                 })
 
-                for field in exp_args:
-                    total_expected_fields += 1
-                    field_info = detailed_match["field_scores"].get(field, {})
-                    if field_info.get("match", False):
-                        total_matched_fields += 1
+                # Count field-level matches
+                for field, field_info in detailed_match["field_scores"].items():
+                    # Only count expected fields (not extra fields in prediction)
+                    if field in exp_args:
+                        total_expected_fields += 1
+                        if field_info.get("match", False):
+                            total_matched_fields += 1
 
-                # ➕ Keep existing call-level match (all-or-nothing)
+                # Call-level match (all-or-nothing)
                 total_name_correct_calls += 1
                 if detailed_match["overall_match"]:
                     matched_correct_args += 1
 
+        # Also count expected fields from tools that weren't predicted at all
+        for name in set(exp_by_name.keys()) - set(pred_by_name.keys()):
+            for exp_args in exp_by_name[name]:
+                total_expected_fields += len(exp_args)
+                # These are all misses (0 matched)
+                case_field_sim_details.append({
+                    "tool_name": name,
+                    "call_index": 0,
+                    "expected_args": exp_args,
+                    "predicted_args": None,
+                    "overall_match": False,
+                    "field_scores": {
+                        field: {"match": False, "reason": "tool not predicted"}
+                        for field in exp_args
+                    }
+                })
+
         correct_args_when_name_correct += matched_correct_args
 
-
-
-
-        # --- Strict full-match ---
+        # --- Strict full-match (for TP/FP/FN) ---
         pred_counter = defaultdict(int)
         exp_counter = defaultdict(int)
         for tc in predicted:
@@ -178,18 +219,15 @@ def evaluate_tool_calling_from_predictions(
             fp += max(0, p - e)
             fn += max(0, e - p)
 
-
-        # ✅ Compute match using ArgumentMatcher — consistent with field-level logic
+        # Compute case-level match using ArgumentMatcher
         case_match = True
         if len(expected) != len(predicted):
             case_match = False
         else:
-            # Pair up tool calls by index (assumes order matters, or use name+arg heuristics)
             for exp_tc, pred_tc in zip(expected, predicted):
                 if exp_tc["name"] != pred_tc["name"]:
                     case_match = False
                     break
-                # Use matcher to check args (same logic as field evaluation)
                 args_match = matcher.match_arguments(
                     exp_tc["arguments"],
                     pred_tc["arguments"],
@@ -199,15 +237,16 @@ def evaluate_tool_calling_from_predictions(
                 if not args_match:
                     case_match = False
                     break
+
         res = {
             "index": i,
             "user_message": user_msg,
             "expected": expected,
             "predicted": predicted,
-            "match": case_match,  # ← now consistent!
-            "content": pred_raw.get("content", ""),
-            "error": pred_raw.get("error"),
-            "field_similarities": field_sim_details 
+            "match": case_match,
+            "content": pred_raw.get("content", pred_raw.get("predicted", {}).get("content", "")),
+            "error": pred_raw.get("error", pred_raw.get("predicted", {}).get("error")),
+            "field_similarities": case_field_sim_details
         }
         results.append(res)
 
@@ -218,11 +257,16 @@ def evaluate_tool_calling_from_predictions(
                 print(f"  Expected: {expected}")
                 print(f"  Got:      {predicted}")
             # Print sim scores if available
-            for fs in res.get("field_similarities", []):
-                for field, info in fs["field_scores"].items():
-                    sim = info["similarity"]
+            for fs in case_field_sim_details:
+                for field, info in fs.get("field_scores", {}).items():
+                    sim = info.get("similarity")
+                    match_status = '✓' if info.get('match', False) else '✗'
+                    mode = info.get('mode', 'unknown')
                     if sim is not None:
-                        print(f"    [{field}] sim={sim:.4f} (mode={info['mode']}) → {'✓' if info['match'] else '✗'}")
+                        print(f"    [{field}] sim={sim:.4f} (mode={mode}) → {match_status}")
+                    else:
+                        reason = info.get('reason', '')
+                        print(f"    [{field}] (mode={mode}) → {match_status} {reason}")
 
     # ==== METRICS ====
     prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
@@ -236,6 +280,7 @@ def evaluate_tool_calling_from_predictions(
 
     arg_accuracy = correct_args_when_name_correct / total_name_correct_calls if total_name_correct_calls > 0 else 0.0
     field_arg_accuracy = total_matched_fields / total_expected_fields if total_expected_fields > 0 else 0.0
+
     return {
         "metrics": {
             "total_cases": len(test_cases),
@@ -257,7 +302,11 @@ def evaluate_tool_calling_from_predictions(
                 "f1_score": round(name_f1, 4)
             },
             "argument_accuracy_given_correct_name": round(arg_accuracy, 4),
-            "argument_field_level_accuracy": round(field_arg_accuracy, 4)  # ✅ NEW
+            "argument_field_level": {
+                "total_expected_fields": total_expected_fields,
+                "total_matched_fields": total_matched_fields,
+                "accuracy": round(field_arg_accuracy, 4)
+            }
         },
         "results": results
     }
@@ -631,7 +680,6 @@ def load_predictions(path: str) -> list:
     else:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-            # support both [ {...}, ... ] and { "results": [...] }
             if isinstance(data, list):
                 return data
             elif isinstance(data, dict):
@@ -689,12 +737,25 @@ def main():
     print(f"Total Cases:              {m['total_cases']}")
     print(f"Exact Match Accuracy:     {m['exact_match_accuracy']:.2%}")
     print()
-    print(f"→ Tool Name F1:           {m['tool_name_accuracy']['f1_score']:.2%}")
-    print(f"→ Arg Accuracy (if name✓):{m['argument_accuracy_given_correct_name']:.2%}")
-    print(f"→ Field-level Arg Acc:    {m['argument_field_level_accuracy']:.2%}")
+    print("📊 Tool Name Accuracy:")
+    print(f"   Precision:             {m['tool_name_accuracy']['precision']:.2%}")
+    print(f"   Recall:                {m['tool_name_accuracy']['recall']:.2%}")
+    print(f"   F1:                    {m['tool_name_accuracy']['f1_score']:.2%}")
     print()
-    print(f"Strict Tool-call F1:      {m['tool_call_level']['f1_score']:.2%}")
-    print(f"\n✅ Saved full report to: {os.path.relpath(json_path)}")
+    print("📊 Argument Accuracy:")
+    print(f"   Call-level (if name✓): {m['argument_accuracy_given_correct_name']:.2%}")
+    field_info = m.get('argument_field_level', {})
+    if field_info:
+        print(f"   Field-level:           {field_info['accuracy']:.2%} ({field_info['total_matched_fields']}/{field_info['total_expected_fields']} fields)")
+    print()
+    print("📊 Strict Tool-call Level:")
+    tc = m['tool_call_level']
+    print(f"   TP={tc['true_positives']} FP={tc['false_positives']} FN={tc['false_negatives']}")
+    print(f"   Precision:             {tc['precision']:.2%}")
+    print(f"   Recall:                {tc['recall']:.2%}")
+    print(f"   F1:                    {tc['f1_score']:.2%}")
+    print()
+    print(f"✅ Saved full report to: {os.path.relpath(json_path)}")
     print(f"   Per-case CSV:         {os.path.relpath(csv_path)}")
 
 
@@ -925,15 +986,15 @@ fi
 # Step 1: Inference (resumable, safe)
 echo "🚀 Running inference..."
 python infer.py \
-  --test_file data/tiny_test.json \
-  --output results/tiny_test/predictions.ndjson \
+  --test_file data/test_each_10.json \
+  --output results/each_10/predictions.ndjson \
   --skip_on_error
 
 # Step 2: Evaluation (separate, reproducible)
 echo "🔍 Running evaluation..."
 python evaluate.py \
-  --test_file data/tiny_test.json \
-  --predictions results/tiny_test/predictions.ndjson \
+  --test_file data/test_each_10.json \
+  --predictions results/each_10/predictions.ndjson \
   --verbose
 
 
