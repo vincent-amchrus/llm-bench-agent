@@ -6,3 +6,5 @@ results/
 
 flattened_repo.txt
 repo_structure.yaml
+
+*.ipynb
