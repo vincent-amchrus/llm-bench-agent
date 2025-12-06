@@ -29,6 +29,11 @@ def chat_completion(
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
+        "extra_body": {
+            "chat_template_kwargs": {
+                "enable_thinking": False
+            }
+        }
     }
 
     if tools:
