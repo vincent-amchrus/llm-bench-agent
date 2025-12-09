@@ -70,10 +70,11 @@ def main():
     parser.add_argument("--skip_on_error", action="store_true", help="Continue on inference error")
     args = parser.parse_args()
 
+    data_name = args.test_file.split("/")[-1].split('.json')[0]
     # Auto-determine output path if not provided
     if args.output is None:
         model_name = get_model_safe_name()
-        args.output = f"results/{model_name}/predictions.ndjson"
+        args.output = f"results/{data_name}/{model_name}/predictions.ndjson"
 
     # Ensure output dir exists (note: dirname of file path)
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
