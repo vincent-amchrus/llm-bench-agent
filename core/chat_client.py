@@ -38,7 +38,7 @@ def chat_completion(
 
     if tools:
         kwargs.update({"tools": tools, "tool_choice": "auto"})
-
+    # print(kwargs)
     try:
         response = client.chat.completions.create(**kwargs)
     except Exception as e:

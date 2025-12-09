@@ -99,7 +99,9 @@ def main():
 
     # Resolve model-based defaults
     model_name = get_model_safe_name()
-    default_result_dir = f"results/{model_name}"
+
+    data_name = args.test_file.split("/")[-1].split('.json')[0]
+    default_result_dir = f"results/{data_name}/{model_name}"
 
     # Set predictions path
     if args.predictions is None:

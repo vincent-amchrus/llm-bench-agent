@@ -1,9 +1,11 @@
 data/
 __pycache__
 results/
+models/
+
 .env
 
-
+unsloth_compiled_cache
 flattened_repo.txt
 repo_structure.yaml
 
