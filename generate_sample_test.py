@@ -1,36 +1,85 @@
+#!/usr/bin/env python3
+# generate_sample_test.py
+import argparse
 import pandas as pd
+import os
 
+def main():
+    parser = argparse.ArgumentParser(
+        description="Sample balanced test set: at most N samples per function/tool."
+    )
+    parser.add_argument(
+        "--input", "-i",
+        required=True,
+        help="Input JSON file (e.g., data/processed/vi_test_2k1.json)"
+    )
+    parser.add_argument(
+        "--output", "-o",
+        help="Output JSON path. Auto-generates if omitted: data/<lang>_test_each_max_<N>.json"
+    )
+    parser.add_argument(
+        "--max_per_function", "-n",
+        type=int,
+        default=10,
+        help="Max number of samples per function (default: 10)"
+    )
+    parser.add_argument(
+        "--random_seed", "-s",
+        type=int,
+        default=42,
+        help="Random seed for reproducibility (default: 42)"
+    )
+    parser.add_argument(
+        "--function_col", "-c",
+        default="function",
+        help="Column name for function/tool name (default: 'function')"
+    )
+    parser.add_argument(
+        "--message_col", default="user_message", help="User message column (for validation)")
 
-inp_path = "data/processed/en_test_2k4.json"
-inp_path = "data/processed/vi_test_2k1.json"
+    args = parser.parse_args()
 
-test = pd.read_json(inp_path)
-max_samples = int(test.function.value_counts().max())
+    # Load data
+    print(f"🔍 Loading {args.input}...")
+    df = pd.read_json(args.input)
+    print(f"📊 Loaded {len(df)} samples. Functions: {df[args.function_col].nunique()}")
 
-max_each_fn = 10
-max_each_fn = min(max_each_fn, max_samples)
+    if args.function_col not in df.columns:
+        raise ValueError(f"Column '{args.function_col}' not found. Available: {list(df.columns)}")
 
+    # Sample
+    max_each_fn = args.max_per_function
+    sampled = (
+        df.groupby(args.function_col, group_keys=False)
+          .apply(lambda g: g.sample(n=min(len(g), max_each_fn), random_state=args.random_seed))
+          .reset_index(drop=True)
+    )
 
-output_path = f"data/en_test_each_max_{max_each_fn}.json"
-output_path = f"data/vi_test_each_max_{max_each_fn}.json"
+    print(f"🎯 Sampled {len(sampled)} samples ({max_each_fn} max per function)")
 
+    # Auto-generate output path if not given
+    if args.output is None:
+        basename = os.path.basename(args.input)
+        stem = basename.rsplit('.', 1)[0]  # e.g., vi_test_2k1
+        lang = "en" if "en" in stem.lower() else "vi" if "vi" in stem.lower() else "test"
+        args.output = f"data/{lang}_test_each_max_{max_each_fn}.json"
 
-import pandas as pd
+    # Ensure output dir exists
+    os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
 
-# df is your dataframe
-# Columns: user_message, tool_calls, function
-import pandas as pd
-samples: pd.DataFrame = (
-    test.groupby("function")
-      .apply(lambda g: g.sample(n=min(len(g), max_each_fn), random_state=42))
-      .reset_index(drop=True)
-)
+    # Save
+    sampled.to_json(
+        args.output,
+        orient="records",
+        force_ascii=False,
+        indent=2
+    )
+    print(f"✅ Saved to: {args.output}")
 
-print("Test set includes {} samples".format(len(samples)))
+    # Optional: show per-function counts
+    counts = sampled[args.function_col].value_counts()
+    print("\n📌 Sample counts per function (top 10):")
+    print(counts.head(10).to_string())
 
-samples.to_json(
-  output_path,
-  orient="records",
-  force_ascii=False,
-  indent=4
-)
+if __name__ == "__main__":
+    main()  

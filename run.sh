@@ -1,6 +1,15 @@
-# 1. Run inference
 
-TEST_FILE="data/vi_test_each_max_1002.json"
+# 0. Optional
+# Sample balanced test set (optional)
+# Full control
+python generate_sample_test.py \
+  --input data/full_test.json \
+  --output data/custom_balanced_10.json \
+  --max_per_function 10 \
+  --random_seed 123
+
+# 1. Run inference
+TEST_FILE="data/custom_balanced_10.json"
 
 python infer.py \
   --test_file $TEST_FILE \
