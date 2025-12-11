@@ -89,25 +89,30 @@ bash serving.sh   # starts on :8268, enables LoRA + auto tool choice
 
 ```bash
 
-# 0. Optional
-# Sample balanced test set (optional)
-python generate_sample_test.py \
-  --input data/full_test.json \
-  --output data/custom_balanced_10.json \
-  --max_per_function 10 \
-  --random_seed 123
+#!/bin/bash
+set -e
 
-# 1. Run inference
-TEST_FILE="data/custom_balanced_10.json"
+# 🔧 Auto-resolve (from env or fallback)
+TEST_FILE="data/vi_test_each_max_1002.json"
 
-python infer.py \
-  --test_file $TEST_FILE \
-  --skip_on_error
+# Fill model name here
+MODEL="checkpoint_0912_fc_chat_990"
 
-# 2. Run evaluation (auto finds predictions & writes to same folder)
-python evaluate.py \
-  --test_file $TEST_FILE \
-  --verbose
+# 🗂️ Predictions path (matches infer.py & evaluate.py logic)
+DATA_NAME=$(basename "$TEST_FILE" .json)
+SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')
+PRED_PATH="results/${DATA_NAME}/${SAFE_MODEL}/predictions.ndjson"
+
+echo "🚀 Running: MODEL=${MODEL}, TEST_FILE=${TEST_FILE}"
+
+# 1️⃣ Inference (resumable)
+python infer.py --test_file "$TEST_FILE" --skip_on_error
+
+# 2️⃣ Quick exact-match metrics (exact name + args, multi-call safe)
+python eval_exact_match.py "$PRED_PATH"
+
+# # 3️⃣ Full evaluation (semantic/schema-aware) (optional)
+# python evaluate.py --test_file "$TEST_FILE"
 ```
 
 Output:
