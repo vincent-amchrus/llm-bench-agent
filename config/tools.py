@@ -55,4 +55,9 @@
 
 
 import json
-ALL_TOOLS = json.load(open("data/tools/vivi_global_tools.json"))
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+TOOL_PATH = os.getenv("TOOL_PATH")
+ALL_TOOLS = json.load(open(TOOL_PATH))
