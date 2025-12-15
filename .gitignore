@@ -2,7 +2,7 @@ data/
 __pycache__
 results/
 models/
-
+saved/
 .env
 
 unsloth_compiled_cache
@@ -10,3 +10,6 @@ flattened_repo.txt
 repo_structure.yaml
 
 *.ipynb
+
+vivi_global_tools.json
+vivi_smart_tools.json
