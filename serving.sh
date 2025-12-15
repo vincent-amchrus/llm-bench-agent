@@ -1,10 +1,9 @@
-CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen3-1.7B  \
-  --enable-lora \
-  --lora-modules \
-  checkpoint_180=models/checkpoint-180 \
-  checkpoint_45=models/checkpoint-45 \
-  --dtype bfloat16 --host 0.0.0.0 --port 8268 \
-  --enable-auto-tool-choice --tool-call-parser hermes \
-  --max-model-len 16384 \
-  --gpu_memory_utilization 0.7 \
-  --max-lora-rank 32
+
+#!/bin/bash
+
+MODEL_PATH=saved/fc_cp_7500_fc_json
+
+MODEL_NAME=Qwen3-1.7B-FC
+PORT=8268
+
+CUDA_VISIBLE_DEVICES=0 python3 -m vllm.entrypoints.openai.api_server --model $MODEL_PATH --served-model-name $MODEL_NAME --max-model-len 16384 --gpu-memory-utilization 0.9 --trust-remote-code --enable-auto-tool-choice --tool-call-parser hermes --port $PORT

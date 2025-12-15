@@ -2,10 +2,10 @@
 set -e
 
 # 🔧 Auto-resolve (from env or fallback)
-TEST_FILE="data/vi_test_each_max_1002.json"
+TEST_FILE="data/vivi_smart_test/gpt_label_vietnamese_11k_vivi_smart.json"
 
 # Fill model name here
-MODEL="checkpoint_0912_fc_chat_990"
+MODEL="Qwen3-1.7B-FC"
 
 # 🗂️ Predictions path (matches infer.py & evaluate.py logic)
 DATA_NAME=$(basename "$TEST_FILE" .json)

@@ -1,0 +1,243 @@
+[
+    {
+        "type": "function",
+        "function": {
+            "name": "vinfast_knowledge_base",
+            "description": "PURPOSE\nProvide product information and user manuals for all VinFast models.\n\nSUPPORTED MODELS\nElectric, petrol, concept vehicles, and all variants: VF3, VFe34, VF5, VF6, \nVF7, VF8, VF9, Herio Green, Minio Green, Limo Green, EC Van.\n\nTOPICS TO HANDLE\n- Technical specs, features, equipment levels, colors, model differences\n- Model comparisons and purchase guidance\n- Pricing, promotions, deposit and cancellation policies\n- How-to guides for car features (simplified language)\n- Market news, trends, and upcoming models\n- Charging stations and battery information\n\nTOPICS TO AVOID\n- Car errors, warnings, faults, or unusual behavior\n- Software history, bug fixes, or release notes",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "key_word": {
+                        "type": "string",
+                        "description": "**MUST ALWAY RECORD KEYWORD RULE**:\nGet me the key word in the user's sentence, the object the user mentions\nExtract only the main entities in the sentence such as device name, department, service, person name, place name, organization, etc.\nThe main entities can be verbs, nouns, adjectives with specificity that accurately reflects the content of the user's question\nRemove irrelevant general keywords, stop words, adverbs such as \"and\", \"or\", \"is\", \"of\", \"to\", \"in\", \"uh\", \"ah, my, yours, car model name, car version name\nIf there are multiple entities in the sentence with multiple intentions or comparison implications, the default is to take the first entity.\nFor example: \n- \"tính năng đóng nắp ca pô phía trước trên xe\" -> \"nắp ca pô phía trước\"\n- \"hướng dẫn chuyển trang trước và trang tiếp theo thông tin số\" -> \"thông tin số\"\n- \"giới thiệu về xe này đi\" -> \"giới thiệu về xe\"\n- \"VF8 có bn túi khí\" -> \"túi khí\"\n- \"giới thiệu tính năng A và B\" -> \" tính năng A và B\"\n- \"cách nhả chìa khóa cơ\" -> \"chìa khóa cơ"
+                    },
+                    "rewrite_message": {
+                        "type": "string",
+                        "description": "Based on the conversation history below, rewrite the user's latest input. The rewritten version must be complete, clear, and understandable without needing to refer back to the prior conversation history. Specifically, it must include all important information and context from the user's previous messages to clarify their intent.\n#Example:\nConversation History:\n- User: \"giá xe vf5\"\n- System: \"Trả ra thông tin giá xe VF5\"\n- User: \"vf3 thì sao\"\nResult `rewrite_message`: \"giá xe vf3\"\n#Instructions:\n1. Read the entire conversation history carefully.\n2. Identify the core intent of the user in the latest input.\n3. Take the missing information (like names, places, dates, etc.) from previous messages to supplement the new sentence.\n4. Ensure the rewritten sentence is concise but complete.\n5. Do not add any information that is not present in the conversation history.\n6. The output must be a single, direct sentence assigned to the `rewrite_message` variable."
+                    },
+                    "car_model_name": {
+                        "type": "string",
+                        "description": "bắt tên các tên dòng xe xuất hiện trong câu hỏi của người dùng\nCâu hỏi : \"chế độ bảo hành của xe vinfast limo\" \n-> Gía trị bắt được : \"limo\""
+                    },
+                    "queries": {
+                        "type": "string",
+                        "description": "List of queries to search upto 4 items, separated by commas. Should be diverse to increase the chance to search for related information. Should be diverse to increase the chance to search for related information."
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "weather_tool",
+            "description": "This tool is useful when you need to answer questions about the weather, implied weather-related questions, or indicators such as AQI, PM2.5, humidity, rainfall, UV index, and wind speed.\n\nThis information can be helpful for questions like 'Should I bring an umbrella today?' and for outdoor activities depending on the weather (such as 'Is it a good time to go swimming?' or 'Where should I go in this weather?')\ninformation (such as 'Tôi có nên mang ô hôm nay không', etc), outdoor activities depending on the weather\n(such as 'Có nên đi tắm biển bây giờ không?' 'Thời tiết này nên đi chơi ở đâu?', etc).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "rewrite_message": {
+                        "type": "string",
+                        "description": "A rewritten version of the user's message that clarifies the weather-related query for better search and processing, capturing the intent and relevant details from the conversation context"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "movie_tool",
+            "description": "Use this function to retrieve or explore any kind of information related to movies. This includes but is not limited to: book movie tickets, movie details (e.g. showtime, release time, synopsis, rating, reviews, directors, actors, cinemas showing the movie), general questions or opinions about movies by genre or type (e.g. horror, action, romance), and movie recommendations.\nThe function should be used whenever the user mentions about movies, regardless of whether a specific movie title, date, or cinema name is provided.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "movie_name": {
+                        "type": "string",
+                        "description": "Determine whether the user's input refers to the name of a movie."
+                    },
+                    "cinema": {
+                        "type": "string",
+                        "description": "Identify if the user input mentions a specific movie theater name.\n\n**Rules:**\n\n*   Return only specific cinema names (e.g., CGV Times City, Lotte Landmark , BHD Star Bitexco).\n*   Do not return cities, districts, or general locations (e.g., Hanoi, District 7).\n*   If multiple cinemas are mentioned, return a list of cinema names.\n*   If no specific cinema is mentioned, return null.\n*   Recognize well-known cinema brands: CGV, Lotte, BHD Star, Galaxy, Beta, Cinestar, Mega GS, Platinum."
+                    },
+                    "movie_time": {
+                        "type": "string",
+                        "description": "Determine whether the user's input is a specific valid time in the format hh:mm.\nExample: 09:59"
+                    },
+                    "movie_book_tickets": {
+                        "type": "boolean",
+                        "description": "**Objective:** Determine if the user intends to book or purchase movie tickets.\n\n**Return \"yes\" if:**\n*   The query explicitly states an intention to book or buy tickets.\n*   **Key Action Verbs:** \"book,\" \"buy,\" \"purchase,\" \"reserve.\"\n*   **Key Objects:** \"movie tickets,\" \"film tickets,\" \"cinema seats,\" \"showtime reservation.\"\n\n**Otherwise, return \"no\".**"
+                    },
+                    "movie_information": {
+                        "type": "boolean",
+                        "description": "**Objective:** Identify the user's intent regarding a movie.\n\n**Return \"yes\" if the user is asking about: **\n*   Movie Review\n*   Actor/Cast of the Movie\n*   Author/Director of the Movie\n*   Rating of the Movie\n*   Content of the Movie\n\n**Return \"no\" if the user is asking about: **\n*   Movie Theater\n*   Movie showtimes\n\n**Otherwise, return \"no\".**"
+                    },
+                    "movie_genres": {
+                        "type": "string",
+                        "enum": [
+                            "Hành động",
+                            "Kinh dị",
+                            "Gia Đình",
+                            "Hài",
+                            "Tình cảm",
+                            "Tâm lý",
+                            "Viễn tưởng",
+                            "Giả Tưởng",
+                            "Ca nhạc",
+                            "Tài Liệu",
+                            "Khác"
+                        ],
+                        "description": "The user's input will be evaluated to determine if it relates to one or more predefined movie genres.\n\n**Genre List:**\n\n*   Hành động\n*   Kinh dị\n*   Gia Đình\n*   Hài\n*  Tình cảm\n*   Tâm lý \n*   Viễn tưởng\n*   Giả Tưởng\n*   Ca nhạc\n*   Tài Liệu\n*   Khác\n\nIf the input matches or is semantically related to any genre, that genre will be returned. Otherwise, \"Khác\" will be returned."
+                    },
+                    "rewrite_message": {
+                        "description": "Based on the conversation history below, rewrite the latest and most accurate content that matches the user's intent. The rewritten version must be complete, clear, and understandable without needing to refer back to the prior conversation history.\n\n#Example:\nConversation History:\n- User: \"giá xe vf5\"\n- System: \"Trả ra thông tin giá xe VF5\"\n- User: \"vf3 thì sao\"\nResult rewrite_message: \"giá xe vf3\"\n\n#Instructions:\n1. Read the entire conversation history carefully.\n2. Identify the core intent of the user in the latest input.\n3. For date/time expressions (like \"thứ 6 tuần sau\", \"ngày mai\", etc.):\n   - Calculate the exact date based on `movie_date` base on user's query\n   - Convert relative time expressions to specific dates in YYYY-MM-DD format\n4. Take missing information (names, places, etc.) from previous messages to supplement.\n5. Ensure the rewritten sentence is concise but complete.\n6. Do NOT add information not in the conversation history.\n7. The output must be a single, direct sentence assigned to `rewrite_message`.",
+                        "type": "string"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "cooking_search",
+            "description": "Useful for answering questions about general dishes and menus (EXCEPT local specialties of a country/region), including cooking ingredients, vegetarian/vegan dishes, recipe ideas by ingredient, and general food preparation methods.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "rewrite_message": {
+                        "type": "string",
+                        "description": "Based on the conversation history below, rewrite the user's latest input. The rewritten version must be complete, clear, and understandable without needing to refer back to the prior conversation history. Specifically, it must include all important information and context from the user's previous messages to clarify their intent.\n#Example:\nConversation History:\n- User: \"giá xe vf5\"\n- System: \"Trả ra thông tin giá xe VF5\"\n- User: \"vf3 thì sao\"\nResult `rewrite_message`: \"giá xe vf3\"\n#Instructions:\n1. Read the entire conversation history carefully.\n2. Identify the core intent of the user in the latest input.\n3. Take the missing information (like names, places, dates, etc.) from previous messages to supplement the new sentence.\n4. Ensure the rewritten sentence is concise but complete.\n5. Do not add any information that is not present in the conversation history.\n6. The output must be a single, direct sentence assigned to the `rewrite_message` variable."
+                    },
+                    "location": {
+                        "type": "string",
+                        "description": "location to search"
+                    },
+                    "queries": {
+                        "description": "List of queries to search upto 4 items, separated by commas. Should be diverse to increase the chance to search for related information. Should be diverse to increase the chance to search for related information.",
+                        "type": "string"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "Vehicle_faults_and_operating_tips",
+            "description": "Purpose - Diagnose real-world vehicle issues and provide troubleshooting / remedial advice.\n\nWhat to answer:\n- Identify the cause of a symptom (e.g., warning lights, strange noises, rapid battery drain, low tyre pressure, brake squeal, camera obstruction).\n- Step-by-step repair or mitigation instructions, reset procedures, when to service the car, parts-replacement timelines, battery-health monitoring.\n- Maintenance recommendations (e.g., “when should I replace the brake pads?”, “how often to check the high-voltage battery”).\n- How to fix vehicle issues\n- Warranty policy, maintenance policy, and repair service\n\nWhat NOT to handle\n- General product specifications, feature descriptions, or buying-related advice.\n- Information about software-version releases (that belongs to the third tool).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "description": "Record the user's action and returns one of :\n- check_issues: If input is related to an unclear user question, general question about the vehicle's issue like: what is the user's vehicle's problem, check current problem of the user's current vehicle \n- check: Check the status of the vehicle including, Tire pressure parameters, Amount of remaining battery, wheel temperature, wheel status, tightest wheel\n- kb_action: User's input is to raise an issue and ask for advice on efficient vehicle operation tips, such as optimizing battery life or fuel-efficient driving techniques . In addition, when user asks about common vehicle or technical problems, questions about vehicle errors, specific vehicle problems or how to operate the vehicle efficiently, or reports on vehicle error status such as \"the mhu screen is frozen\", asking why the problem occurs, ask \"pressure stamp\", asking whether a specific error occurs\n- check_distance: Intent with how far the remaining battery can go, estimated remaining distance"
+                    },
+                    "object": {
+                        "type": "string",
+                        "enum": [
+                            "BATTERY",
+                            "TIRE_PRESSURE"
+                        ],
+                        "description": "Records the user's object mentioned  and returns one of the following results:\n- BATTERY: User mentions Distance left, battery, battery percentage, battery charge, current battery level, pin, pin percentage, pin charge, current pin level, \n- TIRE_PRESSURE: áp suất lốp xe,  tire pressure"
+                    },
+                    "number": {
+                        "type": "number",
+                        "description": "ONLY Record battery percent, record the battery level the user mentioned"
+                    },
+                    "key_word": {
+                        "type": "string",
+                        "description": "**MUST ALWAY RECORD KEYWORD RULE**:\nGet me the key word in the user's sentence, the object the user mentions\nExtract only the main entities in the sentence such as device name, department, service, person name, place name, organization, etc.\nThe main entities can be verbs, nouns, adjectives with specificity that accurately reflects the content of the user's question\nRemove irrelevant general keywords, stop words, adverbs such as \"and\", \"or\", \"is\", \"of\", \"to\", \"in\", \"uh\", \"ah, my, yours, car model name, car version name\nIf there are multiple entities in the sentence with multiple intentions or comparison implications, the default is to take the first entity.\nFor example : \n\"hướng dẫn đóng nắp ca pô phía trước trên xe\" -> \"nắp ca pô phía trước\"\n\"hướng dẫn chuyển trang trước và trang tiếp theo thông tin số\" -> record \"thông tin số\"\n\"giới thiệu về xe này đi\" -> record \"giới thiệu về xe\"\n\"VF8 có bn túi khí\" -> \"túi khí\"\n\"giới thiệu tính năng A và B\" ->  \" tính năng A và B\"\n\"cách nhả chìa khóa cơ\" -\"chìa khóa cơ"
+                    },
+                    "rewrite_message": {
+                        "type": "string",
+                        "description": "Based on the conversation history below, rewrite the user's latest input. The rewritten version must be complete, clear, and understandable without needing to refer back to the prior conversation history. Specifically, it must include all important information and context from the user's previous messages to clarify their intent.\n#Example:\nConversation History:\n- User: \"giá xe vf5\"\n- System: \"Trả ra thông tin giá xe VF5\"\n- User: \"vf3 thì sao\"\nResult `rewrite_message`: \"giá xe vf3\"\n#Instructions:\n1. Read the entire conversation history carefully.\n2. Identify the core intent of the user in the latest input.\n3. Take the missing information (like names, places, dates, etc.) from previous messages to supplement the new sentence.\n4. Ensure the rewritten sentence is concise but complete.\n5. Do not add any information that is not present in the conversation history.\n6. The output must be a single, direct sentence assigned to the `rewrite_message` variable."
+                    },
+                    "car_model_name": {
+                        "type": "string",
+                        "description": "bắt tên các tên dòng xe xuất hiện trong câu hỏi của người dùng\nCâu hỏi : \"chế độ bảo hành của xe vinfast limo\" \n-> Gía trị bắt được : \"limo\"\nCâu hỏi : \"xe VF8 có hiển thị lịch bảo dưỡng định kỳ không\" \n-> Gía trị bắt được : \"VF8"
+                    },
+                    "queries": {
+                        "type": "string",
+                        "description": "List of queries to search upto 4 items, separated by commas. Should be diverse to increase the chance to search for related information. Should be diverse to increase the chance to search for related information.\nExamples with different user's input:\n- \"Có cần bảo mật số VIN không? -> \"tầm quan trọng của bảo mật số VIN\"\n- \"Những cách nào có thể dùng để tải xuống bản cập nhật phần mềm theo cách thủ công?\" -> \"phương pháp tải xuống bản cập nhật phần mềm thủ công\"\n- \"Phụ kiện chính hãng VinFast bảo hành bao lâu?\" -> \"chính sách bảo hành phụ kiện ô tô VinFast\"\n**Always return at least 1 query**"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "Frs_tool",
+            "description": "Purpose - Provide software-version, firmware version, fota version information: release history, newly added functions, and bugs that have been fixed in each update.\n\nWhat to answer\n- “What new features are in firmware 2.4?”\n- “Has bug X been fixed in the latest update?”\n- Comparison of current vs. previous firmware versions, guidance on whether an update is required.\n- Clarify which version a particular improvement (e.g., fast-charging optimisation, auto-balancing) belongs to.\n\nWhat NOT to handle\n- Direct troubleshooting of a current fault (use Vehicle_faults_and_operating_tips for that).\n- General vehicle specifications, usage instructions, or buying advice.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "rewrite_message": {
+                        "type": "string",
+                        "description": "Based on the conversation history below, rewrite the user's latest input. The rewritten version must be complete, clear, and understandable without needing to refer back to the prior conversation history. Specifically, it must include all important information and context from the user's previous messages to clarify their intent.\n#Example:\nConversation History:\n- User: \"giá xe vf5\"\n- System: \"Trả ra thông tin giá xe VF5\"\n- User: \"vf3 thì sao\"\nResult `rewrite_message`: \"giá xe vf3\"\n#Instructions:\n1. Read the entire conversation history carefully.\n2. Identify the core intent of the user in the latest input.\n3. Take the missing information (like names, places, dates, etc.) from previous messages to supplement the new sentence.\n4. Ensure the rewritten sentence is concise but complete.\n5. Do not add any information that is not present in the conversation history.\n6. The output must be a single, direct sentence assigned to the `rewrite_message` variable."
+                    },
+                    "car_model_name": {
+                        "description": "bắt tên các tên dòng xe xuất hiện trong câu hỏi của người dùng\nCâu hỏi : \"chế độ bảo hành của xe vinfast limo\" \n-> Gía trị bắt được : \"limo\"",
+                        "type": "string"
+                    },
+                    "queries": {
+                        "description": "List of queries to search upto 4 items, separated by commas. Should be diverse to increase the chance to search for related information. Should be diverse base on history to increase the chance to search for related information.",
+                        "type": "string"
+                    },
+                    "new_frs": {
+                        "description": "- Determine whether the user's query requires the **current or new/update/latest versions** of vehicle software, firmware, FOTA, or FRS.\nIf it does, return \"true\"; if not, return \"false\".\n\nExamples:\n*   User Query: \"Is there a new software update?\"\n    new_frs: \"true\"\n*   User Query: \"What firmware update is the car running?\"\n    new_frs: \"true\"\n*   User Query: \"What bugs does the current fota version fix?\"\n    new_frs: \"true\"\n*   User Query: \"What improvements have been made in the current software version?\"\n    new_frs: \"true\"\n*   User Query: \"Let me know details about the car fota version you are using.\"\n    new_frs: \"true\"\n*   User Query: \"cho tôi biết chi tiết phiên bản mới\"\n    new_frs: \"true\"\n*   User Query: \"Which software version optimizes wifi connection stability?\"\n    new_frs: \"false\"",
+                        "type": "boolean"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "tourism_search",
+            "description": "useful for when you need to answer questions about travel: unique or popular restaurants & dishes, local specialties, sights, historical monuments, events, outdoor activities at attractions, destinations, tours, transportation, suggesting the best hotel accommodations based on user's specific needs and preferences (such as suggesting hotels/resorts/homestays and suitable room categories), etc. Example input: món truyền thống, đặc sản, ở X có món gì nổi tiếng; du lịch đi đâu, khách sạn này có gì hay, etc\n- MUST CALL TOOL: when user ask and want to know about tourist destinations, notes when traveling to places, how to get to tourist destinations, about eyeglasses, Tips when traveling to places, how to get to tourist destinations, ask about the location of tourist destinations, refer to travel experiences",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "rewrite_message": {
+                        "type": "string",
+                        "description": "Based on the conversation history below, rewrite the user's latest input. The rewritten version must be complete, clear, and understandable without needing to refer back to the prior conversation history. Specifically, it must include all important information and context from the user's previous messages to clarify their intent.\n#Example:\nConversation History:\n- User: \"giá xe vf5\"\n- System: \"Trả ra thông tin giá xe VF5\"\n- User: \"vf3 thì sao\"\nResult `rewrite_message`: \"giá xe vf3\"\n#Instructions:\n1. Read the entire conversation history carefully.\n2. Identify the core intent of the user in the latest input.\n3. Take the missing information (like names, places, dates, etc.) from previous messages to supplement the new sentence.\n4. Ensure the rewritten sentence is concise but complete.\n5. Do not add any information that is not present in the conversation history.\n6. The output must be a single, direct sentence assigned to the `rewrite_message` variable."
+                    },
+                    "location": {
+                        "type": "string",
+                        "description": "The \"location\" variable refers to a specific place the user is asking about in input"
+                    },
+                    "queries": {
+                        "type": "string",
+                        "description": "List of queries to search upto 4 items, separated by commas. Should be diverse to increase the chance to search for related information. Should be diverse to increase the chance to search for related information."
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "zodiac_search",
+            "description": "Useful for answering questions related to zodiac signs, including general information (such as birth dates, personality traits, ruling planets, elements, colors, symbols, and compatibility). It also provides insights into daily/weekly/monthly/yearly horoscopes, the influence of planets on each sign, and predictions about love, relationships, career, and personal growth. Additionally, it explains how each zodiac sign approaches emotions, communication, and social dynamics",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "rewrite_message": {
+                        "type": "string",
+                        "description": "Based on the conversation history below, rewrite the user's latest input. The rewritten version must be complete, clear, and understandable without needing to refer back to the prior conversation history. Specifically, it must include all important information and context from the user's previous messages to clarify their intent.\n#Example:\nConversation History:\n- User: \"giá xe vf5\"\n- System: \"Trả ra thông tin giá xe VF5\"\n- User: \"vf3 thì sao\"\nResult `rewrite_message`: \"giá xe vf3\"\n#Instructions:\n1. Read the entire conversation history carefully.\n2. Identify the core intent of the user in the latest input.\n3. Take the missing information (like names, places, dates, etc.) from previous messages to supplement the new sentence.\n4. Ensure the rewritten sentence is concise but complete.\n5. Do not add any information that is not present in the conversation history.\n6. The output must be a single, direct sentence assigned to the `rewrite_message` variable."
+                    }
+                },
+                "required": []
+            }
+        }
+    }
+]
