@@ -1,0 +1,137 @@
+[
+    {
+        "type": "function",
+        "function": {
+            "name": "VEHICLE_CONTROL",
+            "description": "Use this tool to execute hardware commands AND check the current status of vehicle systems.\nKEY CAPABILITIES:\n- State/Status Query: Check if devices are On/Off or their current level. Examples: \"Check the fan\", \"Is the AC on?\", \"What is the volume level?\", \"Check window status\".\n- HVAC & Climate: Adjust temp, fan speed, airflow (face/feet), air intake. Resolves \"too hot/cold\".\n- Cabin & Hardware: Control windows, sunroof, mirrors, seats (massage/heat), lights, wipers, trunk, door locks.\n- System Settings: Volume, brightness, language, WiFi/Bluetooth, display modes.\n- App Management: Open apps/screens.\nINTENT: Use for both CHANGING settings (e.g., \"Turn on AC\") and CHECKING settings (e.g., \"Check AC\").",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "number": {
+                        "type": "number",
+                        "description": "- If user mentions a negative number -X then MUST record -X, and if the number is positive, record that number\n- record a number or -number in input of user like X level or X temperature, -X level or -X temperature or \"X mức\" of #object, by X, to X, X units, level X, X, at X, by -X, to -X, -X units, at -X\n- For example:\nset to 0 -> 0\nclose to 0 -> 0\ndown to 3 levels -> 3\nat 29 highest -> 29\nat -10 -> -10\nby 75 -> 75\n4 units -> 4\nvolume to 40.5 -> 40.5\nlevel 5 -> 5\nto 91 degrees -> 91\nto 1 -> 1\nlower by 1 unit/notch -> 1\nnumber 6 -> 6\n9 number -> 9\ntingkat level 2 -> 2\nreduce maximum -> not record\na touch -> not record\n**Important mandatory principle:**\n- if the user input {input} is related to the case the user mentions negative numbers like - number_1, you need to note that number is negative, then record  - number_1.  e.g. level - 3 then record -3\n- If user input contains numbers/mentions numbers, it is mandatory to record and not to ignore, If no level is mentioned -> DO NOT RECORD"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "MEDIA_CONTROL",
+            "description": "",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "media_action": {
+                        "type": "string",
+                        "enum": ["on", "off","set" , "remove", "repeat", "repeat_all", "repeat_off", "shuffle", "shuffle_off", "tuning", "tuning_off", "next", "previous", "switch", "show", "complain", "set_speed", "turn on autoplay", "turn off autoplay"],
+                        "description": "Records the user's request and returns one of the following results:\n- on: on/play/turn on/need/listen/find/broadcast\n- off: stop, pause, turn off\n- set: set or add channel to favourite list, add podcast\n- remove\n- repeat: replay one song\n- repeat_all: replay all song/playlist\n- repeat_off: turn off repeat (Example: لا تكرر)\n- shuffle: mix music \n- shuffle_off: turn off shuffle music \n- tuning: tune or search automatic radio/channel\n- tuning_off: turn off/stop/pause automatic tune radio\n- next: play or move to next song/channel/track/post/podcast/#channel below, station later, شغل التالي\n- previous: rewind podcast, back music, back to previous song/channel/radio/post/podcast, switch to front channel, listen to last music/again, أعد تشغيل الأغنية السابقة\n- switch: switch or change #source (Example: حول)\n- show: show list music/artist/favourite/radio/genres/categories/channel in list, have any, on playlist, station playlist, play stations playlist\n- complain: negative comments about the song/music/channel/track/post/radio (Example: هذه المحطة سيئة جداً.)\n- set_speed: set speed at/increase/decrease speed, listen to podcast from minute, rewind to the left/right"
+                    },
+                    "music_playlist": {
+                        "type": "string",
+                        "enum": [
+                            "genre",
+                            "artist",
+                            "album"
+                        ],
+                        "description": "This variable should be assigned only when the user's intent is to view a list of music-related categories such as genres, artists, albums.\nIt must not be assigned when the user's intent is to play music, request playback, or listen to a specific item.\nThe user's intent should be explicitly focused on browsing, exploring, or retrieving a list, not on initiating playback.\nPossible values include:\n- genre: when the user wants to see  LIST of music genres\n- artist: when the user wants to see a LIST of artists\n- album: when the user wants to see a LIST of albums"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "PHONE_MANAGER",
+            "description": "MUST Use this tool to:\n1. Make call or connect to a number: make a call, call a specific phone number, call a contact by name, or call back from call history (missed, outgoing, or incoming calls).\n2. Search Contacts: Find a contact’s name in the user’s list or a specific phone number.\n3. View Call History: Display a list of calls: incoming, outgoing, missed, or recent (all types combined).\n4. Complain: When the user wants to file a complaint or express dissatisfaction.\n5. Confirm the call or search option (including contact name, the numerical order) in the list of found results.\n6. Provide contact names in the context of making a call, searching contact\n7. Confirm whether the user agrees/continuous/disagrees/stops to make a phone call.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "phone_call",
+                            "search_contact",
+                            "view_call_history",
+                            "complain",
+                            "confirm",
+                            "phone_other"
+                        ],
+                        "description": "Analyze the user's intent and return ONE of the following values:\n- `phone_call`: When user wants to make a call (Example: call, make call, make a phone call, dial, dial the number, memutar nomor, menelpon, panggil, hubungi, call someone, call back,redial, call customer service/hotline/support)\n- `search_contact`: When user wants to find/lookup contact information, phone numbers, or directory assistance (Example: Berapa nomor, Nomor layanan pelanggan VinFast)\n- `view_call_history`: When user wants to see/review call logs, missed calls, recent calls, or call records\n- `complain`: When user wants to file a complaint or express dissatisfaction about service\n- `confirm`: When user provides confirmation responses (Example: yes, no, okay, proceed, cancel, stop)\n- `phone_other`: When user requests other phone-related functions (Example: settings, voicemail, messaging, or unclear phone tasks)\nPriority: If a request involves multiple actions, classify by the PRIMARY intent. If user needs to find a contact before calling, use `search_contact` first."
+                    },
+                    "contact": {
+                        "type": "string",
+                        "description": "The name of the contact to call or search. A contact can be:\n- A person's name\n- A name that includes numbers\n- A nickname\n- A nickname that includes numbers\n- A noun referring to a person (e.g., \"mom,\" \"dad,\" \"boss\", \"anh\", \"bro\")\n#Rule:\n1. Ordinal Reference Resolution: \n- If user refers to contact by ordinal position (e.g., \"first contact\", \"second one\", \"number 2\", \"contact thứ nhất\", \"người đầu tiên\"), resolve it to the exact contact name from `contact_result` array\n- Example: If contact_result = [\"Alice\", \"Bob\", \"Charlie\"] and user says \"first contact\", then contact = \"Alice\"\n- If no valid contact_result exists or ordinal is out of range, contact must be empty\n2. Direct Name Reference: If user directly states a contact name, use that exact name as provided\n3. Number-Only and Out-of-Range Ordinal Exclusion: \n- If input contains ONLY standalone numbers/digits without accompanying names → DO NOT detect\n- If user refers to contact by ordinal position BUT the ordinal exceeds the length of contact_result array → DO NOT detect (contact must be empty)\n- Example: If contact_result has 5 contacts and user says \"eighth contact\" (thứ tám) → DO NOT detect\n4. 'hotline', 'road support', 'roadside assistance', 'customer service', 'vinfast's customer center' are not contact.\n#Examples:\n- ما هو رقم الأخت؟ -> الأخت\n- ابحث عن رقم أختي -> أختي"
+                    },
+                    "yes_or_no": {
+                        "type": "string",
+                        "enum": [
+                            "yes",
+                            "no"
+                        ],
+                        "description": "Record the user's action confirming whether or not the request is accepted and return one of the following results:\n- yes: when the user expresses agreement or permission (e.g., \"ok\", \"yes\", \"go on\", \"hurry up\")\n- no: when the user expresses disagreement or denial (e.g. \"không\", \"no\", \"stop\", \"not anymore\")"
+                    },
+                    "other_service": {
+                        "type": "string",
+                        "description": "A service or hotline number that is not related to roadside assistance, vehicle support, customer service, general hotline, or emergency services. It also includes any service number that belongs to a company other than VinFast. Return this value if the user refers to a service number that includes the name of another company besides VinFast."
+                    },
+                    "ordinal_llm": {
+                        "type": "string",
+                        "description": "the ordinal number in the user's question"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "VEHICLE_INFO",
+            "description": "Use this tool ONLY to retrieve static information, specifications, and usage guides for VinFast vehicles.\nKEY CAPABILITIES:\n- Specs & Features: Battery, range, dimensions, colors, trim levels, price.\n- Usage Guides: \"How-to\" instructions (e.g., \"How to charge\", \"How to use ADAS\").\n- Policies: Warranty, charging stations, battery subscription.\nRESTRICTIONS:\n- DO NOT use for checking the LIVE STATUS of the car (e.g., \"Is the fan on?\", \"Check AC status\", \"Current battery level\" -> use VEHICLE_CONTROL).\n- DO NOT use for general news or weather.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "key_word": {
+                        "type": "string",
+                        "description": "**MUST ALWAY RECORD KEYWORD RULE**:\nGet me the key word in the user's sentence, the object the user mentions\nExtract only the main entities in the sentence such as device name, department, service, person name, place name, organization, etc.\nThe main entities can be verbs, nouns, adjectives with specificity that accurately reflects the content of the user's question\nRemove irrelevant general keywords, stop words, adverbs such as \"and\", \"or\", \"is\", \"of\", \"to\", \"in\", \"uh\", \"ah, my, yours, car model name, car version name\nIf there are multiple entities in the sentence with multiple intentions or comparison implications, the default is to take the first entity.\nFor example: \n- “front exhaust product closing feature on car” -> “front hood”\n- “instructions for turning previous and next pages by parameters” -> “parameters”\n- “tell me about this car” -> “tell me about the car”\n- “how many airbags does VF8 have” -> “airbags”\n- “introduce features A and B” -> “features A and B”\n- “how to waive the base key” -> “base key”"
+                    },
+                    "rewrite_message": {
+                        "type": "string",
+                        "description": "Based on the conversation history below, rewrite the user's latest input. The rewritten version must be complete, clear, and understandable without needing to refer back to the prior conversation history. Specifically, it must include all important information and context from the user's previous messages to clarify their intent.\n#Example:\nConversation History:\n- User: \"vf5 car price\"\n- System: \"Return VF5 car price information\"\n- User: \"what about vf3\"\nResult `rewrite_message`: \"vf3 car price\"\n- User: \"how to open the vf7 car trunk\"\n- System: \"Return guide to open the VF7 car trunk\"\n- User: \"what about my car\"\nResult `rewrite_message` if car_model=VF6: \"how to open the VF6 car trunk\"\n#Instructions:\n1. Read the entire conversation history carefully.\n2. Identify the core intent of the user in the latest input.\n3. Take the missing information (like names, places, dates, etc.) from previous messages to supplement the new sentence.\n4. Ensure the rewritten sentence is concise but complete.\n5. Do not add any information that is not present in the conversation history.\n6. The output must be a single, direct sentence assigned to the `rewrite_message` variable."
+                    },
+                    "car_model_name": {
+                        "type": "string",
+                        "description": "bắt tên các tên dòng xe xuất hiện trong câu hỏi của người dùng Câu hỏi : \"chế độ bảo hành của xe vinfast limo\" -> Gía trị bắt được : \"limo\""
+                    },
+                    "queries": {
+                        "type": "string",
+                        "description": "List of queries to search upto 4 items, separated by commas. Should be diverse to increase the chance to search for related information. Should be diverse to increase the chance to search for related information.\nExamples with different user's input:\n- \"Is VIN security necessary? -> \"the importance of VIN security\"\n- \"What are the ways to manually download software updates?\" -> \"manual software update download methods\"\n- \"How long is the warranty period for genuine VinFast accessories?\" -> \"VinFast auto accessories warranty policy\"\n**Always return at least 1 query**"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "WEATHER_INFO",
+            "description": "Use this tool to retrieve real-time weather information, forecasts, and environmental indices.\nKEY CAPABILITIES:\n- Core Metrics: Temperature, humidity, rainfall chance, wind speed, UV index, AQI (Air Quality), PM2.5.\n- Forecasts: Weather for today, tomorrow, or specific dates/locations.\n- Activity Advice (Implied): Answers questions dependent on weather conditions, such as: \"Should I bring an umbrella?\", \"Is it good for a picnic?\", \"Should I go swimming?\".\n- Locations: Handles queries for current location or specific requested cities/regions.\nUse this when the user's intent requires meteorological data to provide a correct answer or recommendation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "rewrite_message": {
+                        "type": "string",
+                        "description": ""
+                    }
+                },
+                "required": []
+            }
+        }
+    }
+]

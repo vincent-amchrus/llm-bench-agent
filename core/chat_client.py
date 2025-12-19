@@ -3,6 +3,7 @@ import json
 from typing import List, Dict, Optional, Union
 from openai import OpenAI
 
+
 def chat_completion(
     messages: Union[str, List[Dict[str, str]]],
     base_url: str,
@@ -14,31 +15,62 @@ def chat_completion(
     max_tokens: Optional[int] = None,
 ) -> Dict:
     """
-    Unified chat completion interface for tool-calling evaluation.
+    Unified chat completion interface
+    - vLLM / local LLM
+    - OpenAI (GPT-4.1 / 4o)
     """
+
+    # =========================
+    # Detect backend
+    # =========================
+    is_openai = "api.openai.com" in base_url
+
+    # =========================
+    # Normalize messages
+    # =========================
     if isinstance(messages, str):
         messages = [{"role": "user", "content": messages}]
 
     if system_prompt:
         messages = [{"role": "system", "content": system_prompt}] + messages
 
-    client = OpenAI(base_url=base_url, api_key=api_key)
+    # =========================
+    # Client
+    # =========================
+    client = OpenAI(
+        base_url=base_url,
+        api_key=api_key,
+    )
 
+    # =========================
+    # Base kwargs (CHUNG)
+    # =========================
     kwargs = {
         "model": model,
         "messages": messages,
         "temperature": temperature,
-        "max_tokens": max_tokens,
-        "extra_body": {
+    }
+
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+
+    if tools:
+        kwargs["tools"] = tools
+        kwargs["tool_choice"] = "auto"
+
+    # =========================
+    # vLLM-only options
+    # =========================
+    if not is_openai:
+        kwargs["extra_body"] = {
             "chat_template_kwargs": {
                 "enable_thinking": False
             }
         }
-    }
 
-    if tools:
-        kwargs.update({"tools": tools, "tool_choice": "auto"})
-    # print(kwargs)
+    # =========================
+    # Call
+    # =========================
     try:
         response = client.chat.completions.create(**kwargs)
     except Exception as e:
@@ -46,21 +78,27 @@ def chat_completion(
             "error": str(e),
             "content": None,
             "tool_calls": [],
-            "usage": {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None}
+            "usage": {
+                "prompt_tokens": None,
+                "completion_tokens": None,
+                "total_tokens": None,
+            },
         }
 
+    # =========================
     # Parse response
+    # =========================
     msg = response.choices[0].message
     usage = getattr(response, "usage", None)
 
     result = {
         "content": msg.content or "",
+        "tool_calls": [],
         "usage": {
             "prompt_tokens": getattr(usage, "prompt_tokens", None),
             "completion_tokens": getattr(usage, "completion_tokens", None),
             "total_tokens": getattr(usage, "total_tokens", None),
         },
-        "tool_calls": []
     }
 
     if msg.tool_calls:
@@ -69,9 +107,10 @@ def chat_completion(
                 args = json.loads(tc.function.arguments)
             except json.JSONDecodeError:
                 args = {"_raw": tc.function.arguments}
+
             result["tool_calls"].append({
                 "name": tc.function.name,
-                "arguments": args
+                "arguments": args,
             })
 
     return result
