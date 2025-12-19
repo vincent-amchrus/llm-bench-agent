@@ -33,8 +33,6 @@ def load_completed_hashes(output_path: str) -> set:
                     line = line.strip()
                     if line:
                         try:
-                            item = json.loads(line)
-                            if "input_hash" in item:
                                 completed.add(item["input_hash"])
                         except Exception:
                             pass
@@ -91,6 +89,8 @@ def process_case(case_info, inference_func, output_path, file_lock, skip_on_erro
         "index": case.get("index", i),
         "input_hash": h,
         "user_message": case["user_message"],
+        "_source_sheet": case.get("_source_sheet", ""),
+        "_source_file": case.get("_source_file", ""),
         "expected": case.get("tool_calls", []),
         "predicted": {
             "content": pred_raw.get("content", ""),

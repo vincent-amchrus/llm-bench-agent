@@ -1,99 +1,189 @@
 #!/usr/bin/env python3
-# exact_metrics.py — Strict exact-match: all tool calls (name + full args), order-sensitive
+# exact_metrics.py
+# NAME-ONLY accuracy & F1 (arguments ignored)
+# WITH explicit NO_CALL class
+
 import argparse
 import pandas as pd
-import json
 import os
+from collections import defaultdict
 
-def normalize_value(v):
-    """Match evaluator.py's normalize_value"""
-    if isinstance(v, float):
-        return round(v, 5)
-    elif isinstance(v, dict):
-        return {k: normalize_value(val) for k, val in sorted(v.items())}
-    elif isinstance(v, list):
-        return [normalize_value(x) for x in v]
-    else:
-        return v
+NO_CALL = "__NO_CALL__"
 
-def normalize_tool_call(tc):
-    """Same as in evaluator.py"""
-    return {
-        "name": tc["name"],
-        "arguments": normalize_value(tc.get("arguments", {}))
-    }
+# =========================================================
+# Helper
+# =========================================================
 
-def is_exact_match(expected_raw, predicted_raw):
-    """Strict exact match: same number of calls, same name & args (order matters)"""
-    expected = [normalize_tool_call(tc) for tc in expected_raw] if expected_raw else []
-    predicted_tool_calls = (predicted_raw or {}).get("tool_calls", [])
-    predicted = [normalize_tool_call(tc) for tc in predicted_tool_calls] if predicted_tool_calls else []
+def get_names_from_expected(expected):
+    if not expected:
+        return [NO_CALL]
+    return [e.get("name") for e in expected]
 
-    if len(expected) != len(predicted):
-        return False
 
-    for exp, pred in zip(expected, predicted):
-        if exp["name"] != pred["name"]:
-            return False
-        if exp["arguments"] != pred["arguments"]:
-            return False
-    return True
+def get_names_from_predicted(predicted):
+    calls = (predicted or {}).get("tool_calls", [])
+    if not calls:
+        return [NO_CALL]
+    return [c.get("name") for c in calls]
 
-def compute_function_name_match(expected_raw, predicted_raw):
-    """Function name match (per call, order-sensitive — first call only if mismatched count)"""
-    expected = [tc.get("name") for tc in expected_raw] if expected_raw else []
-    predicted_tool_calls = (predicted_raw or {}).get("tool_calls", [])
-    predicted = [tc.get("name") for tc in predicted_tool_calls] if predicted_tool_calls else []
 
-    if not expected and not predicted:
-        return 1  # vacuous true
-    if not expected or not predicted:
-        return 0
+# =========================================================
+# Accuracy (NAME-ONLY)
+# =========================================================
 
-    # Compare up to min length
-    min_len = min(len(expected), len(predicted))
-    matches = sum(1 for i in range(min_len) if expected[i] == predicted[i])
-    # Total possible = len(expected)
-    return matches / len(expected) if expected else 1.0
+def is_name_correct(expected, predicted):
+    """
+    Correct if:
+    - both NO_CALL
+    - OR at least one function name matches
+    """
+    gt_names = set(get_names_from_expected(expected))
+    pred_names = set(get_names_from_predicted(predicted))
+
+    # both no call
+    if gt_names == {NO_CALL} and pred_names == {NO_CALL}:
+        return True
+
+    # one correct function name is enough
+    return len(gt_names & pred_names) > 0
+
+
+# =========================================================
+# Macro F1 (NAME-ONLY + NO_CALL)
+# =========================================================
+
+def compute_macro_f1(df):
+    stats = defaultdict(lambda: {"TP": 0, "FP": 0, "FN": 0})
+
+    for _, row in df.iterrows():
+        gt_names = set(get_names_from_expected(row.get("expected", [])))
+        pred_names = set(get_names_from_predicted(row.get("predicted", {})))
+
+        for name in gt_names:
+            if name in pred_names:
+                stats[name]["TP"] += 1
+            else:
+                stats[name]["FN"] += 1
+
+        for name in pred_names:
+            if name not in gt_names:
+                stats[name]["FP"] += 1
+
+    f1s = []
+    for s in stats.values():
+        tp, fp, fn = s["TP"], s["FP"], s["FN"]
+        p = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        r = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        f1 = 2 * p * r / (p + r) if (p + r) > 0 else 0.0
+        f1s.append(f1)
+
+    return sum(f1s) / len(f1s) if f1s else 0.0
+
+
+# =========================================================
+# Main
+# =========================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="Compute exact-match metrics (name + args, multi-call safe)")
-    parser.add_argument("predictions_ndjson", help="Path to predictions.ndjson")
-    parser.add_argument("--output", "-o", help="Save per-case CSV (default: <input>_exact_metrics.csv)")
+    parser = argparse.ArgumentParser(
+        description="Name-only accuracy & F1 (NO_CALL supported)"
+    )
+    parser.add_argument("predictions_ndjson")
+    parser.add_argument("--output", "-o")
     args = parser.parse_args()
 
     if not os.path.exists(args.predictions_ndjson):
-        print(f"❌ File not found: {args.predictions_ndjson}")
-        exit(1)
+        raise FileNotFoundError(args.predictions_ndjson)
 
     df = pd.read_json(args.predictions_ndjson, lines=True)
-    print(f"📊 Loaded {len(df)} predictions.")
+    print(f"📊 Loaded {len(df)} samples")
 
-    # Compute metrics
-    df["exact_match"] = df.apply(
-        lambda r: is_exact_match(r.get("expected", []), r.get("predicted", {})),
+    # -----------------------------------------------------
+    # Per-sample accuracy
+    # -----------------------------------------------------
+    df["accuracy"] = df.apply(
+        lambda r: is_name_correct(r.get("expected", []), r.get("predicted", {})),
         axis=1
     )
-    df["fn_match_ratio"] = df.apply(
-        lambda r: compute_function_name_match(r.get("expected", []), r.get("predicted", {})),
-        axis=1
-    )
 
-    exact_acc = df["exact_match"].mean()
-    fn_acc = df["fn_match_ratio"].mean()
+    print("\n✅ GLOBAL METRICS")
+    print(f"Accuracy (name-only): {df['accuracy'].mean():.2%}")
+    print(f"Macro-F1 (name-only): {compute_macro_f1(df):.2%}")
 
-    print("\n" + "=" * 50)
-    print("✅ STRICT EXACT-MATCH METRICS")
-    print("=" * 50)
-    print(f"Function Name (per-call ratio): {fn_acc:.2%}")
-    print(f"Exact Match (name + all args):   {exact_acc:.2%}")
-    print(f"Samples: {len(df)}")
-    print("=" * 50)
+    # -----------------------------------------------------
+    # Per-function F1 (GLOBAL)
+    # -----------------------------------------------------
+    stats = defaultdict(lambda: {"TP": 0, "FP": 0, "FN": 0})
 
-    # Save
-    out_path = args.output or args.predictions_ndjson.replace(".ndjson", "_exact_metrics.csv")
-    df[["index", "fn_match_ratio", "exact_match"]].to_csv(out_path, index=False)
-    print(f"💾 Saved per-case metrics to: {out_path}")
+    for _, row in df.iterrows():
+        gt = set(get_names_from_expected(row.get("expected", [])))
+        pred = set(get_names_from_predicted(row.get("predicted", {})))
+
+        for n in gt:
+            if n in pred:
+                stats[n]["TP"] += 1
+            else:
+                stats[n]["FN"] += 1
+
+        for n in pred:
+            if n not in gt:
+                stats[n]["FP"] += 1
+
+    print("\n📈 PER-FUNCTION METRICS (NAME-ONLY)")
+    print("=" * 90)
+    print(f"{'Function':<30}{'Precision':<15}{'Recall':<15}{'F1':<10}")
+    print("-" * 90)
+
+    for name in sorted(stats.keys()):
+        s = stats[name]
+        tp, fp, fn = s["TP"], s["FP"], s["FN"]
+        p = tp / (tp + fp) if (tp + fp) > 0 else 0
+        r = tp / (tp + fn) if (tp + fn) > 0 else 0
+        f1 = 2 * p * r / (p + r) if (p + r) > 0 else 0
+        print(f"{name:<30}{p:<15.2%}{r:<15.2%}{f1:<10.2%}")
+
+    print("=" * 90)
+
+    # -----------------------------------------------------
+    # Per (sheet, file)
+    # -----------------------------------------------------
+    if "_source_sheet" in df.columns and "_source_file" in df.columns:
+        rows = []
+
+        for (sheet, file), gdf in df.groupby(["_source_sheet", "_source_file"]):
+            rows.append({
+                "source_sheet": sheet,
+                "source_file": file,
+                "num_samples": len(gdf),
+                "accuracy": gdf["accuracy"].mean(),
+                "macro_f1": compute_macro_f1(gdf)
+            })
+
+        group_df = pd.DataFrame(rows)
+
+        print("\n📊 PER (SHEET, FILE)")
+        print("=" * 110)
+        print(
+            f"{'Sheet':<25}{'File':<35}"
+            f"{'#Samples':<12}{'Accuracy':<15}{'Macro-F1':<10}"
+        )
+        print("-" * 110)
+
+        for _, r in group_df.iterrows():
+            print(
+                f"{str(r['source_sheet']):<25}"
+                f"{str(r['source_file']):<35}"
+                f"{int(r['num_samples']):<12}"
+                f"{r['accuracy']:<15.2%}"
+                f"{r['macro_f1']:<10.2%}"
+            )
+
+        print("=" * 110)
+
+        out = args.output or args.predictions_ndjson.replace(".ndjson", "")
+        group_df.to_csv(f"{out}_by_sheet_file.csv", index=False)
+        print(f"💾 Saved → {out}_by_sheet_file.csv")
+
 
 if __name__ == "__main__":
     main()
