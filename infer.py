@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
-
 from core.chat_client import chat_completion
 from config.tools import ALL_TOOLS
 from utils.misc import get_model_safe_name
@@ -26,18 +25,27 @@ def hash_input(user_message) -> str:
 
 def load_completed_hashes(output_path: str) -> set:
     completed = set()
-    if os.path.exists(output_path):
-        try:
-            with open(output_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        try:
-                                completed.add(item["input_hash"])
-                        except Exception:
-                            pass
-        except Exception as e:
-            print(f"⚠️ Failed to read completed hashes: {e}")
+    if not os.path.exists(output_path):
+        return completed
+    
+    try:
+        with open(output_path, "r", encoding="utf-8") as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                    input_hash = record.get("input_hash")
+                    if input_hash:
+                        completed.add(input_hash)
+                except json.JSONDecodeError:
+                    print(f"⚠️ Invalid JSON at line {line_num} in {output_path}")
+                except Exception as e:
+                    print(f"⚠️ Error parsing line {line_num}: {e}")
+    except Exception as e:
+        print(f"⚠️ Failed to read completed hashes from {output_path}: {e}")
+    
     return completed
 
 def atomic_append_line(output_path: str, data: dict, lock: threading.Lock):
@@ -46,15 +54,13 @@ def atomic_append_line(output_path: str, data: dict, lock: threading.Lock):
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
         f.write("\n")
-    
-    with lock: 
+    with lock:
         with open(tmp_path, "rb") as src, open(output_path, "ab") as dst:
             dst.write(src.read())
-    
-    try:
-        os.remove(tmp_path)
-    except:
-        pass
+        try:
+            os.remove(tmp_path)
+        except:
+            pass
 
 def make_inference_func(base_url, model, api_key, tools, system_prompt=None):
     def infer(user_message):
@@ -100,7 +106,6 @@ def process_case(case_info, inference_func, output_path, file_lock, skip_on_erro
         },
         "timestamp": datetime.now().isoformat()
     }
-
     atomic_append_line(output_path, record, file_lock)
     return True
 
@@ -114,11 +119,9 @@ def main():
     args = parser.parse_args()
 
     data_name = args.test_file.split("/")[-1].split('.json')[0]
-
     if args.output is None:
         model_name = get_model_safe_name()
         args.output = f"results/{data_name}/{model_name}/predictions.ndjson"
-
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
 
     # Load config
@@ -129,16 +132,24 @@ def main():
     test_cases = load_test_cases(args.test_file)
     tools = ALL_TOOLS
 
+    # Load already completed hashes
     done_hashes = load_completed_hashes(args.output)
 
+    # Use a locked set to prevent race condition when multiple threads check/add the same hash
+    processed_hashes = set(done_hashes)
+    processed_lock = threading.Lock()
+
+    # Filter cases to run
     to_run = []
     for i, case in enumerate(test_cases):
         h = hash_input(case["user_message"])
-        if h not in done_hashes:
-            to_run.append((i, case, h))
+        with processed_lock:
+            if h not in processed_hashes:
+                processed_hashes.add(h)
+                to_run.append((i, case, h))
 
     print(f"🚀 Model: {model}")
-    print(f"📊 Total: {len(test_cases)} | Done: {len(done_hashes)} | Remaining: {len(to_run)}")
+    print(f"📊 Total cases: {len(test_cases)} | Already completed: {len(done_hashes)} | Remaining: {len(to_run)}")
 
     if not to_run:
         print("✅ All cases done.")
@@ -167,9 +178,13 @@ def main():
             pass
 
     print(f"✅ All done. Output: {args.output}")
+
     if os.path.exists(args.output):
-        line_count = sum(1 for _ in open(args.output, "r", encoding="utf-8"))
-        print(f" Total lines: {line_count}")
+        try:
+            line_count = sum(1 for _ in open(args.output, "r", encoding="utf-8") if _.strip())
+            print(f"📜 Total valid lines in output: {line_count}")
+        except:
+            print("⚠️ Could not count lines in output file.")
 
 if __name__ == "__main__":
     main()
