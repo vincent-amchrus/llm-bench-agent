@@ -2,10 +2,10 @@
 set -e
 
 # 🔧 Auto-resolve (from env or fallback)
-TEST_FILE="/media/4TB/haict/function-calling/data/vivi_smart_test/_partial_14k5_8tools_include_autogen_vivi_smart_autogen.json"
+TEST_FILE="/media/4TB/haict/function-calling/data/vivi_global_test/_partial_normalized_autogen_full_vivi_en_global_13k5_test.json"
 
 # Fill model name here
-MODEL="Sen-32B-GRPO"
+MODEL="Qwen3-4B-Base"
 
 # 🗂️ Predictions path (matches infer.py & evaluate.py logic)
 DATA_NAME=$(basename "$TEST_FILE" .json)
