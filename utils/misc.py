@@ -10,9 +10,7 @@ def hash_input(user_message) -> str:
 
 import os
 
-def get_model_safe_name(default: str = "default-model") -> str:
-    """Get MODEL from env and sanitize for filenames (e.g., 'Qwen/Qwen3' → 'Qwen-Qwen3')"""
-    model = os.getenv("MODEL", default)
+def get_model_safe_name(model) -> str:
     # Replace problematic chars: /, :, \, |, *, ?, ", <, >, space → hyphen or underscore
     safe = model.replace("/", "-") \
                 .replace(":", "-") \

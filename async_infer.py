@@ -144,24 +144,26 @@ async def process_case_async(
 
 async def main_async():
     parser = argparse.ArgumentParser(description="Crash-safe, resumable inference (async)")
+    parser.add_argument("--model", type=str, help="LLM Name")
     parser.add_argument("--test_file", default="data/test_cases.json", help="Test cases JSON")
     parser.add_argument("--output", default=None, help="NDJSON output path")
     parser.add_argument("--system_prompt", default=None)
     parser.add_argument("--skip_on_error", action="store_true", help="Continue on inference error")
     parser.add_argument("--max_concurrent", type=int, default=32, help="Max concurrent requests (default: 12)")
     args = parser.parse_args()
+    model = args.model
 
     # 🔁 Same output path logic
     data_name = args.test_file.split("/")[-1].split('.json')[0]
     if args.output is None:
-        model_name = get_model_safe_name()
+        model_name = get_model_safe_name(model=model)
         args.output = f"results/{data_name}/{model_name}/predictions.ndjson"
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 
     # 🔁 Same config loading
     base_url = os.getenv("BASE_URL", "http://localhost:8000/v1")
     api_key = os.getenv("API_KEY", "EMPTY")
-    model = os.getenv("MODEL", "Qwen/Qwen3-Next-80B-A3B-Instruct")
+
 
     test_cases = load_test_cases(args.test_file)
     tools = ALL_TOOLS
