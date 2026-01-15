@@ -118,6 +118,97 @@ def chat_completion(
 
 
 
+async def gpt_chat_completion_async(
+    messages: Union[str, List[Dict[str, str]]],
+    model: str,
+    api_key: Optional[str],
+    system_prompt: Optional[str] = None,
+    tools: Optional[List[Dict[str, str]]] = None,
+    base_url: Optional[str] = None,
+    **kwargs
+):
+    """
+    Chat completion function that supports:
+    - List of messages
+    - Single-string task prompt
+
+    Returns:
+        {
+            "content": <assistant message>,
+            "usage": {
+                "prompt_tokens": ...,
+                "completion_tokens": ...,
+                "total_tokens": ...
+            }
+        }
+    """
+
+    try:
+        # Convert single string prompt to chat message
+        if isinstance(messages, str):
+            messages = [
+                {"role": "user", "content": messages}
+            ]
+
+        if system_prompt:
+            messages = [{"role": "system", "content": system_prompt}] + messages
+
+        client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url  # Add base_url to client initialization if provided
+        )
+
+        # Prepare the request parameters
+        params = {
+            "model": model,
+            "messages": messages,
+        }
+        
+        if tools is not None:
+            params["tools"] = tools
+        params.update(kwargs)
+        response = await client.chat.completions.create(**params)
+        
+        # Extract safe content
+        try:
+            content = response.choices[0].message.content
+        except Exception:
+            content = str(response)
+
+        usage = getattr(response, "usage", None)
+        usage_data = {
+            "prompt_tokens": usage.prompt_tokens if usage else None,
+            "completion_tokens": usage.completion_tokens if usage else None,
+            "total_tokens": usage.total_tokens if usage else None,
+        }
+        
+
+        json_response = {
+            "content": content,
+            "usage": usage_data
+        }
+
+        if tools:
+            tool_calls = response.choices[0].message.tool_calls
+            if tool_calls is not None:
+                json_tool_calls = [
+                    {
+                        "name": tool_call.function.name,
+                        "arguments": json.loads(tool_call.function.arguments)
+                    }
+                    for tool_call in tool_calls
+                ]
+                json_response["tool_calls"] = json_tool_calls
+                
+        return json_response
+        
+    except Exception as e:
+        return {
+
+            "error": str(e)
+        }
+
+
 async def chat_completion_async(
     messages: Union[str, List[Dict[str, str]]],
     base_url: str,

@@ -5,11 +5,13 @@ set -e
 TEST_FILE="data/_partial_vi_full_translate_vivi_global_12k4.json"
 TEST_FILE="data/_partial_normalized_autogen_full_vivi_en_global_13k5_test.json"
 # TEST_FILE="data/vivi_smart/_partial_vivi_smart.json"
-TEST_FILE="data/vivi_smart/_partial_new_14k5_8tools_include_autogen_vivi_smart_autogen.json"
-# Fill model name here
-MODEL="_0901_only_response_r16_alpha32_batch16_lr1e-5_6k_nonfc_12k_fc_unsloth-Qwen3-4B-Instruct-2507"
+TEST_FILE="data/vivi_smart/_partial_6k4_labeled_1411_vi_smart.json"
 
+MODEL="ckp300_1201_only_response_r16_alpha32_4epoch_batch_2x8_packing_lr1e-5_6k_nonfc_22k_fc_unsloth-Qwen3-4B-Instruct-2507"
+
+MODEL="unsloth/Qwen3-4B-Instruct-2507"
 MODEL="Qwen/Qwen3-Next-80B-A3B-Instruct"
+
 
 # 🗂️ Predictions path (matches infer.py & evaluate.py logic)
 DATA_NAME=$(basename "$TEST_FILE" .json)
@@ -20,7 +22,8 @@ echo "🚀 Running: MODEL=${MODEL}, TEST_FILE=${TEST_FILE}"
 
 # 1️⃣ Inference (resumable)
 # python infer.py --test_file "$TEST_FILE" --skip_on_error
-python async_infer.py --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32
+# python async_infer.py --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32
+python async_infer_gpt.py --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32
 
 # 2️⃣ Quick exact-match metrics (exact name + args, multi-call safe)
 # python eval_exact_match.py "$PRED_PATH"

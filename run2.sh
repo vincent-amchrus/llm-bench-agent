@@ -7,9 +7,7 @@ TEST_FILE="data/_partial_normalized_autogen_full_vivi_en_global_13k5_test.json"
 # TEST_FILE="data/vivi_smart/_partial_vivi_smart.json"
 TEST_FILE="data/vivi_smart/_partial_new_14k5_8tools_include_autogen_vivi_smart_autogen.json"
 # Fill model name here
-MODEL="mix_100k"
-MODEL="unsloth/Qwen3-4B-Instruct-2507"
-MODEL="lr5e-6_full_ckp3k"
+MODEL="ckp200_1201_only_response_r16_alpha32_4epoch_batch_2x8_packing_lr1e-5_6k_nonfc_22k_fc_unsloth-Qwen3-4B-Instruct-2507"
 
 # 🗂️ Predictions path (matches infer.py & evaluate.py logic)
 DATA_NAME=$(basename "$TEST_FILE" .json)
