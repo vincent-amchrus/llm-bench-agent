@@ -47,15 +47,24 @@ def main():
     if args.function_col not in df.columns:
         raise ValueError(f"Column '{args.function_col}' not found. Available: {list(df.columns)}")
 
-    # Sample
+    # Separate null and non-null rows
+    df_with_values = df[df[args.function_col].notna()].copy()
+    df_null_values = df[df[args.function_col].isna()].copy()
+
+    # Sample from non-null rows
     max_each_fn = args.max_per_function
-    sampled = (
-        df.groupby(args.function_col, group_keys=False)
+    sampled_non_null = (
+        df_with_values.groupby(args.function_col, group_keys=False)
           .apply(lambda g: g.sample(n=min(len(g), max_each_fn), random_state=args.random_seed))
           .reset_index(drop=True)
     )
 
+    # Combine sampled non-null rows with all null rows
+    sampled = pd.concat([sampled_non_null, df_null_values], ignore_index=True)
+
     print(f"🎯 Sampled {len(sampled)} samples ({max_each_fn} max per function)")
+    if len(df_null_values) > 0:
+        print(f"   Included {len(df_null_values)} samples with null values in '{args.function_col}' column")
 
     # Auto-generate output path if not given
     if args.output is None:
@@ -82,4 +91,4 @@ def main():
     print(counts.head(10).to_string())
 
 if __name__ == "__main__":
-    main()  
+    main()

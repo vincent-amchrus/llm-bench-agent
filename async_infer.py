@@ -94,7 +94,8 @@ async def process_case_async(
     tools: List[Dict],
     system_prompt: str | None,
     skip_on_error: bool,
-    output_path: str
+    output_path: str,
+    use_toon_format: bool = False
 ) -> bool:
     try:
         pred_raw = await chat_completion_async(
@@ -104,7 +105,8 @@ async def process_case_async(
             api_key=api_key,
             tools=tools,
             system_prompt=system_prompt,
-            temperature=0.0
+            temperature=0.0,
+            use_toon_format=use_toon_format
         )
         error = None
     except Exception as e:
@@ -150,6 +152,8 @@ async def main_async():
     parser.add_argument("--system_prompt", default=None)
     parser.add_argument("--skip_on_error", action="store_true", help="Continue on inference error")
     parser.add_argument("--max_concurrent", type=int, default=32, help="Max concurrent requests (default: 12)")
+    parser.add_argument("--use_toon_format", action="store_true", help="Use Toon format")
+
     args = parser.parse_args()
     model = args.model
 
@@ -202,7 +206,8 @@ async def main_async():
                 tools=tools,
                 system_prompt=args.system_prompt,
                 skip_on_error=args.skip_on_error,
-                output_path=args.output
+                output_path=args.output,
+                use_toon_format=args.use_toon_format
             )
 
     # 🚀 Run with progress bar
