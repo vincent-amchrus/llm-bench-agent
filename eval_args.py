@@ -2,7 +2,7 @@ import argparse
 import json
 import pandas as pd
 import numpy as np
-from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
+from sklearn.metrics import confusion_matrix, accuracy_score
 import seaborn as sns
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -28,11 +28,25 @@ def compare_predictions(ground_truth, predictions, exist_only_args=None):
     all_names = set(gt_dict.keys()) | set(pred_dict.keys())
 
     for name in all_names:
+        # Capture raw dicts for reporting examples
+        gt_raw = gt_dict.get(name, {}).get("arguments", {})
+        pred_raw = pred_dict.get(name, {}).get("arguments", {})
+
         if name not in gt_dict:
-            details.append({"name": name, "status": "extra", "errors": ["unexpected name"]})
+            details.append({
+                "name": name, 
+                "status": "extra", 
+                "errors": ["unexpected name"],
+                "example": {"gt": None, "pred": pred_raw}
+            })
             continue
         if name not in pred_dict:
-            details.append({"name": name, "status": "missing", "errors": ["prediction missing"]})
+            details.append({
+                "name": name, 
+                "status": "missing", 
+                "errors": ["prediction missing"],
+                "example": {"gt": gt_raw, "pred": None}
+            })
             continue
 
         gt_args = gt_dict[name].get("arguments", {})
@@ -43,7 +57,8 @@ def compare_predictions(ground_truth, predictions, exist_only_args=None):
             if key not in pred_args:
                 errors.append(f"lack key: {key}")
             elif key not in exist_only_args:
-                if gt_args[key] != pred_args[key]:
+                # Convert to string to compare values safely
+                if str(gt_args[key]) != str(pred_args[key]):
                     errors.append(f"wrong value: {key}")
 
         for key in pred_args:
@@ -51,7 +66,12 @@ def compare_predictions(ground_truth, predictions, exist_only_args=None):
                 errors.append(f"redundant key: {key}")
 
         status = "mismatch" if errors else "correct"
-        details.append({"name": name, "status": status, "errors": errors})
+        details.append({
+            "name": name, 
+            "status": status, 
+            "errors": errors,
+            "example": {"gt": gt_args, "pred": pred_args} # Capture example for report
+        })
         if status == "correct":
             correct_count += 1
             
@@ -65,14 +85,27 @@ def compare_predictions(ground_truth, predictions, exist_only_args=None):
     return {"accuracy": accuracy, "details": details}
 
 def compute_tool_statistics(all_details_series):
-    tool_stats = defaultdict(lambda: {'total': 0, 'status_counts': Counter(), 'error_counts': Counter()})
+    # Stats container: { tool_name: { total, status_counts, error_counts, examples } }
+    tool_stats = defaultdict(lambda: {
+        'total': 0, 
+        'status_counts': Counter(), 
+        'error_counts': Counter(),
+        'error_examples': defaultdict(list)
+    })
+    
     for details in all_details_series:
         for item in details:
             name, status = item['name'], item['status']
             tool_stats[name]['total'] += 1
             tool_stats[name]['status_counts'][status] += 1
-            for error in item.get('errors', []):
-                tool_stats[name]['error_counts'][error] += 1
+            
+            if 'errors' in item and item['errors']:
+                for error in item['errors']:
+                    tool_stats[name]['error_counts'][error] += 1
+                    # Store up to 5 examples per error type per tool
+                    if len(tool_stats[name]['error_examples'][error]) < 5:
+                        tool_stats[name]['error_examples'][error].append(item['example'])
+                        
     return tool_stats
 
 # --- HELPER FUNCTIONS ---
@@ -100,48 +133,86 @@ def main():
     output_dir = infer_path.parent
     df = pd.read_json(infer_path, lines=True)
 
-    # 1. Basic Tool Classification
+    # ==========================================
+    # 1. TOOL SELECTION EVALUATION (Full Dataset)
+    # ==========================================
     df['pred_tool_name'] = df['predicted'].apply(parse_tool_call_name)
     df['gt_tool_name'] = df['expected'].apply(parse_tool_call_name)
-    df = df[df['gt_tool_name'] != '__NO_CALL__'].reset_index(drop=True)
 
-    # 2. Argument Accuracy
-    df['pred_list'] = df['predicted'].apply(parse_tool_call_list)
-    df['gt_list'] = df['expected'].apply(parse_tool_call_list)
+    # A. Overall Tool Selection (All samples)
+    overall_tool_acc = accuracy_score(df['gt_tool_name'], df['pred_tool_name']) * 100
+
+    # B. Tool-Only Accuracy (Subset where GT is NOT No-Call)
+    tool_mask = df['gt_tool_name'] != '__NO_CALL__'
+    if tool_mask.sum() > 0:
+        tool_only_acc = accuracy_score(
+            df[tool_mask]['gt_tool_name'], 
+            df[tool_mask]['pred_tool_name']
+        ) * 100
+    else:
+        tool_only_acc = 0.0
+
+    # C. No-Call Accuracy (Recall: Subset where GT IS No-Call)
+    no_call_mask = df['gt_tool_name'] == '__NO_CALL__'
+    if no_call_mask.sum() > 0:
+        # Accuracy on this subset is simply how many were predicted as NO_CALL
+        no_call_acc = (df[no_call_mask]['pred_tool_name'] == '__NO_CALL__').mean() * 100
+    else:
+        no_call_acc = 0.0
+
+    # ==========================================
+    # 2. ARGUMENT EVALUATION (Filtered Dataset)
+    # ==========================================
     
-    arg_evals = df.apply(lambda row: compare_predictions(
+    # Filter: Only evaluate arguments for rows where a tool was actually expected
+    df_args = df[df['gt_tool_name'] != '__NO_CALL__'].copy().reset_index(drop=True)
+
+    df_args['pred_list'] = df_args['predicted'].apply(parse_tool_call_list)
+    df_args['gt_list'] = df_args['expected'].apply(parse_tool_call_list)
+    
+    # Run comparison
+    arg_evals = df_args.apply(lambda row: compare_predictions(
         row['gt_list'], row['pred_list'], 
         exist_only_args=["key_word", "rewrite_message", "queries"]
-        # exist_only_args=[]
     ), axis=1)
     
-    df['arg_accuracy'] = arg_evals.apply(lambda x: x['accuracy'])
-    df['arg_details'] = arg_evals.apply(lambda x: x['details'])
+    df_args['arg_accuracy'] = arg_evals.apply(lambda x: x['accuracy'])
+    df_args['arg_details'] = arg_evals.apply(lambda x: x['details'])
     
-    avg_arg_acc = df['arg_accuracy'].mean() * 100
-    tool_stats = compute_tool_statistics(df['arg_details'])
+    # Metrics based on filtered data
+    avg_arg_acc = df_args['arg_accuracy'].mean() * 100
+    tool_stats = compute_tool_statistics(df_args['arg_details'])
 
-    # 3. Visualization (Confusion Matrix)
+    # ==========================================
+    # 3. REPORTING
+    # ==========================================
+
+    # Visualization (Full Dataset Confusion Matrix)
     labels = sorted(set(df['gt_tool_name']) | set(df['pred_tool_name']))
     cm_norm = confusion_matrix(df['gt_tool_name'], df['pred_tool_name'], labels=labels, normalize='true')
     plt.figure(figsize=(10, 8))
     sns.heatmap(pd.DataFrame(cm_norm * 100, index=labels, columns=labels), annot=True, fmt='.1f', cmap='Blues')
     plt.title('Tool Selection Accuracy (%)')
+    plt.ylabel('Ground Truth')
+    plt.xlabel('Predicted')
     cm_path = output_dir / "confusion_matrix.png"
     plt.savefig(cm_path, bbox_inches='tight')
     plt.close()
 
-    # 4. Build Markdown Content
+    # Markdown Content
     md_lines = [
         "# Tool-Call & Argument Evaluation Report",
         f"**Timestamp**: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         f"**Total Samples**: {len(df)}",
+        f"**Tool Samples (for Args)**: {len(df_args)}",
         "",
         "## 📊 Executive Summary",
-        f"| Metric | Score |",
-        f"| :--- | :--- |",
-        f"| **Overall Tool Selection Accuracy** | `{accuracy_score(df['gt_tool_name'], df['pred_tool_name'])*100:.2f}%` |",
-        f"| **Overall Argument Accuracy** | `{avg_arg_acc:.2f}%` |",
+        "| Metric | Score | Scope |",
+        "| :--- | :--- | :--- |",
+        f"| **Overall Tool Selection** | `{overall_tool_acc:.2f}%` | All samples |",
+        f"| **Tool-Only Accuracy** | `{tool_only_acc:.2f}%` | Only where GT is a tool |",
+        f"| **No-Call Accuracy** | `{no_call_acc:.2f}%` | Only where GT is No-Call |",
+        f"| **Argument Accuracy** | `{avg_arg_acc:.2f}%` | Average on Tool samples |",
         "",
         "## 🛠️ Per-Tool Argument Statistics"
     ]
@@ -149,7 +220,7 @@ def main():
     for tool, data in tool_stats.items():
         total = data['total']
         md_lines.append(f"### `{tool}`")
-        md_lines.append(f"- **Occurrences**: {total}\n")
+        md_lines.append(f"- **Total Occurrences**: {total}\n")
         
         # Status Table
         md_lines.append("| Status | Count | Percentage |")
@@ -157,32 +228,51 @@ def main():
         for status, count in data['status_counts'].items():
             md_lines.append(f"| {status} | {count} | {(count/total)*100:.1f}% |")
         
-        # Top Errors
+        # Top Errors with Examples
         if data['error_counts']:
-            md_lines.append("\n**Top Argument Errors:**")
+            md_lines.append("\n**Top Argument Errors & Examples:**")
+            
+            # Get top 3 errors
             for err, count in data['error_counts'].most_common(3):
-                md_lines.append(f"\n- {err} ({count} hits)")
+                md_lines.append(f"\n#### ❌ Error: `{err}` ({count} hits)")
+                
+                examples = data['error_examples'].get(err, [])
+                # Show up to 3 examples
+                for i, ex in enumerate(examples[:3], 1):
+                    gt_dump = json.dumps(ex['gt'], indent=2, ensure_ascii=False)
+                    pred_dump = json.dumps(ex['pred'], indent=2, ensure_ascii=False)
+                    
+                    md_lines.append(f"**Example {i}:**")
+                    md_lines.append("```json")
+                    md_lines.append(f"// Ground Truth\n{gt_dump}\n\n// Predicted\n{pred_dump}")
+                    md_lines.append("```")
+
         md_lines.append("\n---")
 
     md_lines.append("## 📈 Tool Selection Heatmap")
     md_lines.append("![Confusion Matrix](confusion_matrix.png)")
 
-    # 5. Export to PDF
+    # Export
     try:
         import markdown as md_lib
         from weasyprint import HTML
         
+        # Add basic CSS for better readability
         html_body = md_lib.markdown("\n".join(md_lines), extensions=['tables', 'fenced_code'])
         styled_html = f"""
         <html>
         <head><style>
-            body {{ font-family: sans-serif; margin: 40px; line-height: 1.5; color: #333; }}
-            table {{ border-collapse: collapse; width: 100%; margin-bottom: 20px; }}
-            th, td {{ border: 1px solid #ddd; padding: 10px; text-align: left; }}
-            th {{ background-color: #f2f2f2; }}
-            h1, h2 {{ color: #2c3e50; border-bottom: 2px solid #eee; }}
-            h3 {{ color: #2980b9; margin-top: 20px; }}
-            img {{ max-width: 100%; height: auto; display: block; margin: 20px 0; }}
+            body {{ font-family: 'Segoe UI', sans-serif; margin: 40px; line-height: 1.6; color: #333; }}
+            table {{ border-collapse: collapse; width: 100%; margin-bottom: 20px; font-size: 14px; }}
+            th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+            th {{ background-color: #f8f9fa; font-weight: 600; }}
+            h1 {{ border-bottom: 3px solid #007bff; padding-bottom: 10px; color: #2c3e50; }}
+            h2 {{ border-bottom: 1px solid #eee; margin-top: 30px; color: #34495e; }}
+            h3 {{ color: #007bff; margin-top: 25px; }}
+            h4 {{ color: #dc3545; margin-top: 15px; font-size: 1rem; }}
+            pre {{ background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #e9ecef; overflow-x: auto; }}
+            code {{ font-family: 'Consolas', monospace; color: #d63384; }}
+            img {{ max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; }}
         </style></head>
         <body>{html_body}</body>
         </html>
@@ -192,10 +282,12 @@ def main():
         HTML(string=styled_html, base_url=str(output_dir)).write_pdf(str(pdf_path))
         print(f"✅ PDF Report generated: {pdf_path}")
     except ImportError:
-        print("⚠️ Install 'weasyprint' and 'markdown' for PDF support.")
+        print("⚠️ Install 'weasyprint' and 'markdown' for PDF support. Saving MD instead.")
+        with open(output_dir / "report.md", "w", encoding='utf-8') as f:
+            f.write("\n".join(md_lines))
 
-    # Save JSON for programmatic access
-    df[['gt_tool_name', 'pred_tool_name', 'arg_accuracy']].to_json(output_dir / "metrics_raw.json", orient='records')
+    # Save metrics
+    df_args[['gt_tool_name', 'pred_tool_name', 'arg_accuracy']].to_json(output_dir / "metrics_args.json", orient='records')
 
 if __name__ == "__main__":
     main()
