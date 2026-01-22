@@ -2,12 +2,10 @@
 set -e
 
 # 🔧 Auto-resolve (from env or fallback)
+TEST_FILE="data/vivi_global/_partial_1k_hindi_global_mapped_domain.json"
+TEST_FILE="data/vivi_global/_partial_1k3_bahasa_global_mapped_domain.json"
 
-TEST_FILE="data/vivi_smart/_partial_6k4_labeled_1411_vi_smart.json"
-
-MODEL="_1601_toon_only_response_r16_alpha32_batch_2x8_lr1e-5_6k_nonfc_22k_fc_unsloth-Qwen3-4B-Instruct-2507"
-MODEL="_1601_toon_only_response_r16_alpha32_batch_2x8_lr1e-5_full100k_fc_unsloth-Qwen3-4B-Instruct-2507"
-
+# MODEL="gpt-4.1"
 
 
 
@@ -20,10 +18,8 @@ echo "🚀 Running: MODEL=${MODEL}, TEST_FILE=${TEST_FILE}"
 
 # 1️⃣ Inference (resumable)
 # python infer.py --test_file "$TEST_FILE" --skip_on_error
-python async_infer.py \
-    --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32 \
-    --use_toon_format 
-# python async_infer_gpt.py --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32
+# python async_infer.py --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32
+python async_infer_gpt.py --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32
 
 # 2️⃣ Quick exact-match metrics (exact name + args, multi-call safe)
 # python eval_exact_match.py "$PRED_PATH"

@@ -1,8 +1,11 @@
 # core/chat_client.py
 import json
 from typing import List, Dict, Optional, Union
+from urllib import response
 from openai import OpenAI, AsyncOpenAI
+import toon_format
 
+from core.standardized_function_calling_messages import get_system_message_with_tools, parse_toon
 
 def chat_completion(
     messages: Union[str, List[Dict[str, str]]],
@@ -13,6 +16,7 @@ def chat_completion(
     system_prompt: Optional[str] = None,
     temperature: float = 0.0,
     max_tokens: Optional[int] = None,
+    use_toon_format: bool = False
 ) -> Dict:
     """
     Unified chat completion interface
@@ -69,6 +73,12 @@ def chat_completion(
         }
 
     # =========================
+    # Toon format
+    if use_toon_format:
+        system_prompt_message = get_system_message_with_tools(tools, parse_toon)
+        kwargs["messages"] = [system_prompt_message] + messages
+        kwargs["tools"] = None
+    # =========================
     # Call
     # =========================
     try:
@@ -100,6 +110,20 @@ def chat_completion(
             "total_tokens": getattr(usage, "total_tokens", None),
         },
     }
+
+    if use_toon_format and "<tool_call>" in msg.content:
+        content = msg.content
+        tool_calls = content.split('</tool_call>\n<tool_call>')
+        result = {
+            'tool_calls': []
+        }
+        for tc in tool_calls:
+            try:
+                tc = tc.replace("<tool_call>", "").replace("</tool_call>", "").strip()
+                args = toon_format.decode(tc)
+            except toon_format.ToonDecodeError:
+                args = {"_raw": tc}
+            result["tool_calls"].append(args)
 
     if msg.tool_calls:
         for tc in msg.tool_calls:
@@ -218,10 +242,12 @@ async def chat_completion_async(
     system_prompt: Optional[str] = None,
     temperature: float = 0.0,
     max_tokens: Optional[int] = None,
+    use_toon_format: bool = False
 ) -> Dict:
     """
     Unified chat completion interface for tool-calling evaluation.
     """
+    # print("Use toon format:", use_toon_format)
     if isinstance(messages, str):
         messages = [{"role": "user", "content": messages}]
 
@@ -245,6 +271,15 @@ async def chat_completion_async(
     if tools:
         kwargs.update({"tools": tools, "tool_choice": "auto"})
     # print(kwargs)
+
+    # =========================
+    # Toon format
+    if use_toon_format:
+        system_prompt_message = get_system_message_with_tools(tools, fn_parse=parse_toon)
+        kwargs["messages"] = [system_prompt_message] + messages
+        kwargs["tools"] = None
+        kwargs["tool_choice"] = None
+    # =========================
     try:
         response = await client.chat.completions.create(**kwargs)
     except Exception as e:
@@ -269,7 +304,20 @@ async def chat_completion_async(
         "tool_calls": []
     }
 
-    if msg.tool_calls:
+    if use_toon_format and "<tool_call>" in msg.content:
+        content = msg.content
+        tool_calls = content.split('</tool_call>\n<tool_call>')
+        result = {
+            'tool_calls': []
+        }
+        for tc in tool_calls:
+            try:
+                tc = tc.replace("<tool_call>", "").replace("</tool_call>", "").strip()
+                args = toon_format.decode(tc)
+            except toon_format.ToonDecodeError:
+                args = {"_raw": tc}
+            result["tool_calls"].append(args)
+    elif msg.tool_calls:
         for tc in msg.tool_calls:
             try:
                 args = json.loads(tc.function.arguments)
