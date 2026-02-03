@@ -78,6 +78,7 @@ def chat_completion(
         system_prompt_message = get_system_message_with_tools(tools, parse_toon)
         kwargs["messages"] = [system_prompt_message] + messages
         kwargs["tools"] = None
+        
     # =========================
     # Call
     # =========================
@@ -269,17 +270,15 @@ async def chat_completion_async(
     }
 
     if tools:
-        kwargs.update({"tools": tools, "tool_choice": "auto"})
-    # print(kwargs)
+        # Toon format
+        if use_toon_format:
+            system_prompt_message = get_system_message_with_tools(tools, fn_parse=parse_toon)
+            kwargs["messages"] = [system_prompt_message] + messages
+        else:
+            kwargs.update({"tools": tools, "tool_choice": "auto"})
 
     # =========================
-    # Toon format
-    if use_toon_format:
-        system_prompt_message = get_system_message_with_tools(tools, fn_parse=parse_toon)
-        kwargs["messages"] = [system_prompt_message] + messages
-        kwargs["tools"] = None
-        kwargs["tool_choice"] = None
-    # =========================
+    # print(kwargs)
     try:
         response = await client.chat.completions.create(**kwargs)
     except Exception as e:
@@ -304,12 +303,13 @@ async def chat_completion_async(
         "tool_calls": []
     }
 
+    # print("Result1", result)
     if use_toon_format and "<tool_call>" in msg.content:
         content = msg.content
         tool_calls = content.split('</tool_call>\n<tool_call>')
-        result = {
+        result.update( {
             'tool_calls': []
-        }
+        })
         for tc in tool_calls:
             try:
                 tc = tc.replace("<tool_call>", "").replace("</tool_call>", "").strip()
