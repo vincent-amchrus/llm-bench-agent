@@ -195,8 +195,12 @@ def main():
     md_lines.append("| Metric | Value | Note |")
     md_lines.append("|--------|-------|------|")
     md_lines.append(f"| Overall Accuracy | `{overall_acc:.2f}%` | All samples |")
-    md_lines.append(f"| Tool-call Accuracy | `{tool_acc_pct:.2f}%` if tool_acc_pct is not None else `N/A` | GT ≠ `__NO_CALL__` |")
-    md_lines.append(f"| No-call Accuracy | `{no_call_acc_pct:.2f}%` if no_call_acc_pct is not None else `N/A` | GT = `__NO_CALL__` |")
+
+    tool_acc_val = f"{tool_acc_pct:.2f}%" if tool_acc_pct is not None else "N/A"
+    no_call_acc_val = f"{no_call_acc_pct:.2f}%" if no_call_acc_pct is not None else "N/A"
+
+    md_lines.append(f"| Tool-call Accuracy | `{tool_acc_val}` | GT ≠ `__NO_CALL__` |")
+    md_lines.append(f"| No-call Accuracy | `{no_call_acc_val}` | GT = `__NO_CALL__` |")
     md_lines.append("")
 
     # 2. Classification Report

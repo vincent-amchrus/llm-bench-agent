@@ -14,13 +14,13 @@ tqdm.pandas()
 
 # --- ARGUMENT EVALUATION LOGIC ---
 
-def compare_predictions(ground_truth, predictions, exist_only_args=None):
+def compare_predictions(ground_truth, predictions, exist_only_args=None, user_message=None):
     if not isinstance(ground_truth, list): ground_truth = []
     if not isinstance(predictions, list): predictions = []
     
     exist_only_args = set(exist_only_args) if exist_only_args else set()
-    gt_dict = {item["name"]: item for item in ground_truth}
-    pred_dict = {item["name"]: item for item in predictions}
+    gt_dict = {item.get("name"): item for item in ground_truth}
+    pred_dict = {item.get("name"): item for item in predictions}
 
     total_gt = len(ground_truth)
     correct_count = 0
@@ -37,7 +37,7 @@ def compare_predictions(ground_truth, predictions, exist_only_args=None):
                 "name": name, 
                 "status": "extra", 
                 "errors": ["unexpected name"],
-                "example": {"gt": None, "pred": pred_raw}
+                "example": {"user_message": user_message, "gt": None, "pred": pred_raw}
             })
             continue
         if name not in pred_dict:
@@ -45,7 +45,7 @@ def compare_predictions(ground_truth, predictions, exist_only_args=None):
                 "name": name, 
                 "status": "missing", 
                 "errors": ["prediction missing"],
-                "example": {"gt": gt_raw, "pred": None}
+                "example": {"user_message": user_message, "gt": gt_raw, "pred": None}
             })
             continue
 
@@ -70,7 +70,7 @@ def compare_predictions(ground_truth, predictions, exist_only_args=None):
             "name": name, 
             "status": status, 
             "errors": errors,
-            "example": {"gt": gt_args, "pred": pred_args} # Capture example for report
+            "example": {"user_message": user_message, "gt": gt_args, "pred": pred_args} # Capture example for report
         })
         if status == "correct":
             correct_count += 1
@@ -92,7 +92,7 @@ def compute_tool_statistics(all_details_series):
         'error_counts': Counter(),
         'error_examples': defaultdict(list)
     })
-    
+
     for details in all_details_series:
         for item in details:
             name, status = item['name'], item['status']
@@ -173,7 +173,8 @@ def main():
     # Run comparison
     arg_evals = df_args.apply(lambda row: compare_predictions(
         row['gt_list'], row['pred_list'], 
-        exist_only_args=["key_word", "rewrite_message", "queries"]
+        exist_only_args=["key_word", "rewrite_message", "queries"],
+        user_message=row['user_message']
     ), axis=1)
     
     df_args['arg_accuracy'] = arg_evals.apply(lambda x: x['accuracy'])
@@ -181,7 +182,9 @@ def main():
     
     # Metrics based on filtered data
     avg_arg_acc = df_args['arg_accuracy'].mean() * 100
-    tool_stats = compute_tool_statistics(df_args['arg_details'])
+    tool_stats = compute_tool_statistics(
+        all_details_series=df_args['arg_details']
+    )
 
     # ==========================================
     # 3. REPORTING
@@ -228,23 +231,26 @@ def main():
         for status, count in data['status_counts'].items():
             md_lines.append(f"| {status} | {count} | {(count/total)*100:.1f}% |")
         
+        n_top_errors = 10
+        n_examples = 5
         # Top Errors with Examples
         if data['error_counts']:
             md_lines.append("\n**Top Argument Errors & Examples:**")
             
-            # Get top 3 errors
-            for err, count in data['error_counts'].most_common(3):
+            # Get top n errors
+            for err, count in data['error_counts'].most_common(n_top_errors):
                 md_lines.append(f"\n#### ❌ Error: `{err}` ({count} hits)")
                 
                 examples = data['error_examples'].get(err, [])
-                # Show up to 3 examples
-                for i, ex in enumerate(examples[:3], 1):
+                # Show up to n examples
+                for i, ex in enumerate(examples[:n_examples], 1):
+                    user_msg = json.dumps(ex['user_message'], indent=2, ensure_ascii=False)
                     gt_dump = json.dumps(ex['gt'], indent=2, ensure_ascii=False)
                     pred_dump = json.dumps(ex['pred'], indent=2, ensure_ascii=False)
                     
                     md_lines.append(f"**Example {i}:**")
                     md_lines.append("```json")
-                    md_lines.append(f"// Ground Truth\n{gt_dump}\n\n// Predicted\n{pred_dump}")
+                    md_lines.append(f"// User message\n{user_msg}\n\n// Ground Truth\n{gt_dump}\n\n// Predicted\n{pred_dump}")
                     md_lines.append("```")
 
         md_lines.append("\n---")
