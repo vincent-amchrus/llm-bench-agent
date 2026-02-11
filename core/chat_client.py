@@ -243,7 +243,8 @@ async def chat_completion_async(
     system_prompt: Optional[str] = None,
     temperature: float = 0.0,
     max_tokens: Optional[int] = None,
-    use_toon_format: bool = False
+    use_toon_format: bool = False,
+    **other_kwargs
 ) -> Dict:
     """
     Unified chat completion interface for tool-calling evaluation.
@@ -276,9 +277,9 @@ async def chat_completion_async(
             kwargs["messages"] = [system_prompt_message] + messages
         else:
             kwargs.update({"tools": tools, "tool_choice": "auto"})
-
+    kwargs.update(other_kwargs)
     # =========================
-    # print(kwargs)
+    # print(kwargs) 
     try:
         response = await client.chat.completions.create(**kwargs)
     except Exception as e:

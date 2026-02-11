@@ -4,6 +4,7 @@ set -e
 # 🔧 Auto-resolve (from env or fallback)
 TEST_FILE="data/vivi_global/_partial_1k_hindi_global_mapped_domain.json"
 TEST_FILE="data/vivi_global/_partial_1k3_bahasa_global_mapped_domain.json"
+TEST_FILE="data/groundtruth/global/_partial_1k6_en_global_labeled.json"
 
 # MODEL="gpt-4.1"
 
@@ -25,4 +26,5 @@ python async_infer_gpt.py --model "$MODEL" --test_file "$TEST_FILE" --skip_on_er
 # python eval_exact_match.py "$PRED_PATH"
 
 # # 3️⃣ Full evaluation (semantic/schema-aware) (optional)
-python eval_tool_calls.py --pred_path "$PRED_PATH" 
+python eval_tool_calls.py --pred_path "$PRED_PATH"
+python eval_args.py --pred_path "$PRED_PATH"
