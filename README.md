@@ -13,7 +13,9 @@ Create a `.env` file in your project root with the following settings:
 ```env
 BASE_URL="http://localhost:8268/v1"
 API_KEY="EMPTY"
-TOOLS_PATH="config/tools.json"  # or your actual tools JSON path
+TOOLS_PATH="data/tools/vivi_global_tools2.json"  # global tool's description
+#or
+TOOLS_PATH="data/tools/vivi_smart_tools.json" # smart tool's description
 ```
 
 > 💡 **Note**:  
