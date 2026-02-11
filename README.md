@@ -1,212 +1,122 @@
-Here's a professional **`README.md`** for your tool-calling evaluation project, tailored to match your codebase and workflow preferences (e.g., resumable inference, field-level evaluation, configurable matching, GPU/server-aware setup):
+Here's a revised and professional **`README.md`** section that clearly explains how to set up and run evaluation using your provided `.env` and `run.sh` configurations:
 
 ---
 
-# 🛠️ Tool-Calling Evaluation Framework
+## 🧪 Step-by-Step Evaluation Guide
 
-A robust, modular framework for **evaluating function/tool-calling accuracy** of LLMs — supporting **exact, semantic, time-aware, and fuzzy argument matching**, resumable inference, and fine-grained metrics beyond simple full-match.
+To evaluate your fine-tuned LLM on tool-calling tasks, follow these steps:
 
-Designed for reproducible, crash-safe evaluation with support for multilingual test sets, LoRA fine-tuned models (e.g., via vLLM), and field-level debugging.
+### 1. Configure Environment Variables
 
----
+Create a `.env` file in your project root with the following settings:
 
-## ✨ Features
-
-- ✅ **Field-level argument matching**: per-parameter strategies (`exact`, `normalized`, `semantic`, `time`, `fuzzy`)
-- 🧪 **Resumable & crash-safe inference**: auto-skips completed cases using SHA-256 input hashing + `.ndjson` checkpointing
-- 📊 **Rich evaluation metrics**:
-  - Exact-match accuracy
-  - Tool name precision/recall/F1
-  - Argument accuracy (call-level & field-level)
-  - Strict tool-call-level TP/FP/FN (for F1)
-- 🧠 **Semantic matching** via `sentence-transformers`, configurable thresholds & models
-- ⚙️ **Environment-driven config** (`.env`), tool schema-defined match modes
-- 🌐 **vLLM + LoRA-ready**: pre-built `serving.sh` for Qwen3 with LoRA adapters
-- 🌍 **Multilingual test set sampling** (`en`/`vi`) with balanced function distribution
-
----
-
-## 📁 Project Structure
-
+```env
+BASE_URL="http://localhost:8268/v1"
+API_KEY="EMPTY"
+TOOLS_PATH="config/tools.json"  # or your actual tools JSON path
 ```
-.
-├── serving.sh                 # vLLM launch script (Qwen3 + LoRA support)
-├── run.sh                     # End-to-end: infer → evaluate
-├── infer.py                   # Resumable inference (NDJSON output)
-├── evaluate.py                # Offline evaluation (uses precomputed preds)
-├── generate_sample_test.py    # Sample test sets per function (balanced)
-│
-├── core/
-│   ├── chat_client.py         # OpenAI-compatible client for local LLMs
-│   ├── evaluator.py           # Main evaluation logic
-│   └── argument_matcher.py    # Per-field matching with multiple modes
-│
-├── config/
-│   └── tools.py              # Load tools from JSON (env: TOOL_PATH)
-│
-├── utils/
-│   ├── io.py                  # Save JSON/CSV reports
-│   └── misc.py                # Hashing, safe model name, etc.
-│
-├── data/                      # Sample test cases (JSON)
-├── results/                   # Auto-generated: predictions, evals, summaries
-└── requirements.txt
+
+> 💡 **Note**:  
+> - `BASE_URL` should point to your vLLM OpenAI-compatible API endpoint.  
+> - `TOOLS_PATH` must reference a valid JSON file containing your function/tool definitions (e.g., `vf_global_tools2.json` or `vivi_smart_tools.json`).  
+> - The evaluation scripts automatically load tools from this path via `config/tools.py`.
+
+---
+
+### 2. Prepare Your Test Data
+
+Place your labeled test cases in the `data/` directory. Each sample must include:
+- `user_message`: list of chat messages (typically `[{"role": "user", "content": "..."}]`)
+- `tool_calls`: ground-truth tool call(s) in OpenAI format (`[{"name": "...", "arguments": {...}}]`)
+
+Example structure (`data/groundtruth/vivi_smart/_partial_6k4_vi_smart_labeled_0302.json`):
+```json
+[
+    {
+        "_source_sheet":"25466_03_LLM Movie Search",
+        "tool_calls":[
+            {
+                "name":"movie_tool",
+                "arguments":{
+                    "rewrite_message":"lịch chiếu phim cuối tuần này",
+                    "movie_book_tickets":false,
+                    "movie_information":false
+                }
+            }
+        ],
+        "user_message":"lịch chiếu phim cuối tuần này",
+        "_source_file":"TestReport_SystemTest_VFVA_Vivi 2.0_NewRewrite_20250918_Retest.xlsx",
+        "function":"movie_tool"
+    }
+]
 ```
 
 ---
 
-## 🚀 Quick Start
+### 3. Run Inference + Evaluation
 
-### 1. Setup
+Use the provided `run.sh` script (or adapt it) to perform end-to-end evaluation:
 
 ```bash
-# Install deps (ensure torch & CUDA-compatible)
-pip install -r requirements.txt
-
-# Copy and edit .env (see below)
-cp .env.example .env
-```
-
-> 🔑 **Key `.env` variables**:
-> ```env
-> MODEL=Qwen/Qwen3-1.7B
-> BASE_URL=http://localhost:8268/v1
-> API_KEY=EMPTY
-> TOOL_PATH=config/tools.json
-> MATCH_MODE=semantic
-> SIMILARITY_THRESHOLD=0.85
-> EMBEDDING_MODEL="Qwen/Qwen3-Embedding-0.6B"
-> DEVICE=cuda
-> ```
-
-### 2. Serve Model (vLLM + LoRA)
-
-```bash
-bash serving.sh   # starts on :8268, enables LoRA + auto tool choice
-```
-
-### 3. Run Inference & Evaluation
-
-```bash
-
 #!/bin/bash
 set -e
 
-# 🔧 Auto-resolve (from env or fallback)
-TEST_FILE="data/vi_test_each_max_1002.json"
+# 🔧 Test file and model
+TEST_FILE="data/groundtruth/vivi_smart/_partial_6k4_vi_smart_labeled_0302.json"
+MODEL="_1002_only_response_r32_alpha64_batch_2x8_lr1e-5_31k_unsloth-Qwen3-4B-Instruct-2507"
 
-# Fill model name here
-MODEL="checkpoint_0912_fc_chat_990"
-
-# 🗂️ Predictions path (matches infer.py & evaluate.py logic)
+# 🗂️ Auto-generate output path
 DATA_NAME=$(basename "$TEST_FILE" .json)
 SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')
 PRED_PATH="results/${DATA_NAME}/${SAFE_MODEL}/predictions.ndjson"
 
 echo "🚀 Running: MODEL=${MODEL}, TEST_FILE=${TEST_FILE}"
 
-# 1️⃣ Inference (resumable)
-python infer.py --test_file "$TEST_FILE" --skip_on_error
+# 1️⃣ Run inference (resumable, skips completed cases)
+python async_infer_gpt.py \
+  --model "$MODEL" \
+  --test_file "$TEST_FILE" \
+  --skip_on_error \
+  --max_concurrent 32
 
-# 2️⃣ Quick exact-match metrics (exact name + args, multi-call safe)
-python eval_exact_match.py "$PRED_PATH"
-
-# # 3️⃣ Full evaluation (semantic/schema-aware) (optional)
-# python evaluate.py --test_file "$TEST_FILE"
+# 2️⃣ Evaluate tool selection & arguments
+python eval_tool_calls.py --pred_path "$PRED_PATH"    # Tool name accuracy + confusion matrix
+python eval_args.py --pred_path "$PRED_PATH"          # Per-tool argument correctness (with examples)
+python eval_summary_args.py --pred_path "$PRED_PATH"  # Concise summary report
 ```
 
-Output:
-```
-✅ Saved full report to: results/vi_test_each_max_10/checkpoint-180/toolcall_eval_20251211_143022.json
-   Per-case CSV:         results/.../toolcall_eval_20251211_143022.csv
-   Summary text:         results/.../summary.txt   <-- 👈 human-readable!
-```
+> ✅ **Outputs** will be saved under `results/<dataset>/<model>/`:
+> - `predictions.ndjson`: raw predictions (resumable checkpoint)
+> - `evaluation_summary.md` / `.pdf`: human-readable report
+> - `confusion_matrix.png`: visual tool selection performance
+> - `metrics_args.json`: structured argument-level metrics
 
 ---
 
-## 📈 Evaluation Output (`summary.txt`)
+### 4. (Optional) Serve Your Model First
 
-```
-🏆 TOOL-CALLING EVALUATION SUMMARY
-============================================================
-Generated: 2025-12-11 14:30:22
-Model:     checkpoint-180
-Test File: vi_test_each_max_10
+If you're evaluating a local vLLM model (not GPT), start the server first:
 
-Total Cases:              48
-Exact Match Accuracy:     85.42%
-
-📊 Tool Name Accuracy:
-   Precision:             96.77%
-   Recall:                93.75%
-   F1:                    95.24%
-
-📊 Argument Accuracy:
-   Call-level (if name✓): 91.30%
-   Field-level:           88.64% (78/88 fields)
-
-📊 Strict Tool-call Level (exact match):
-   TP=44 FP=1 FN=2
-   Precision:             97.78%
-   Recall:                95.65%
-   F1:                    96.70%
+```bash
+# Example: serving.sh
+MODEL_PATH=/path/to/your/model
+CUDA_VISIBLE_DEVICES=0 python3 -m vllm.entrypoints.openai.api_server \
+  --model $MODEL_PATH \
+  --port 8268 \
+  --gpu-memory-utilization 0.9 \
+  --trust-remote-code \
+  --enable-auto-tool-choice \
+  --tool-call-parser hermes
 ```
 
----
-
-## 🛠️ Advanced Usage
-
-### Custom Tool Schema Matching
-
-In your `tools.json`, annotate fields with `match_mode`:
-
-```json
-{
-  "type": "function",
-  "function": {
-    "name": "weather_tool",
-    "parameters": {
-      "properties": {
-        "location": {
-          "type": "string",
-          "match_mode": "semantic"
-        },
-        "time": {
-          "type": "string",
-          "match_mode": "time"
-        },
-        "unit": {
-          "type": "string",
-          "enum": ["C", "F"],
-          "match_mode": "exact"
-        }
-      }
-    }
-  }
-}
-```
-
-### Resume Crashed Inference
-
-`infer.py` auto-detects completed cases via `input_hash` and skips them — safe to re-run.
-
+Then ensure `BASE_URL="http://localhost:8268/v1"` in `.env`.
 
 ---
 
-## 🧪 Requirements
-
-- Python ≥ 3.9
-- GPU (CUDA) recommended for inference & embedding (optional but faster)
-- `vLLM` ≥ 0.6.0 (separately installed; not in `requirements.txt`)
-- `sentence-transformers` for semantic/fuzzy matching (optional fallback: text normalization)
-
----
-
-## 📜 License
-
-MIT — feel free to adapt for internal/tool-calling research use.
-
----
-
+This setup supports:
+- **Resumable inference** (crash-safe via input hashing)
+- **Multi-tool, multi-argument evaluation**
+- **Detailed error analysis** (missing keys, wrong values, extra calls)
+- **Both GPT and self-hosted models**
 
 Happy evaluating! 🚀
