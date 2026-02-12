@@ -2,12 +2,13 @@
 set -e
 
 # 🔧 Auto-resolve (from env or fallback)
+TEST_FILE="data/groundtruth/vivi_smart/_partial_6k4_vi_smart_labeled_0302.json"
 TEST_FILE="data/groundtruth/global/_partial_1k6_en_global_labeled.json"
 TEST_FILE="data/groundtruth/global/_13k5_en_global_labeled.json"
-TEST_FILE="data/groundtruth/vivi_smart/_partial_6k4_vi_smart_labeled_0302.json"
 
 MODEL="_1002_only_response_r32_alpha64_batch_2x8_lr1e-5_31k_unsloth-Qwen3-4B-Instruct-2507"
-
+MODEL="_1102_only_response_r32_alpha64_batch_2x8_lr1e-5_30k5_unsloth-Qwen3-4B-Instruct-2507"
+MODEL="models-merged_model-qwen3-4b-it-1102"
 # 🗂️ Predictions path (matches infer.py & evaluate.py logic)
 DATA_NAME=$(basename "$TEST_FILE" .json)
 SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')
