@@ -6,6 +6,31 @@ Here's a revised and professional **`README.md`** section that clearly explains 
 
 To evaluate your fine-tuned LLM on tool-calling tasks, follow these steps:
 
+### 0. Serve Your Model First
+
+If you're evaluating a local vLLM model (not GPT), start the server first:
+
+```bash
+
+export HF_HOME=/mnt/data/huggingface
+
+#CUDA_VISIBLE_DEVICES=0 vllm serve unsloth/Qwen3-4B-Instruct-2507  \
+vllm serve <base model>  \
+  --enable-lora \
+  --lora-modules \
+  <check point name>=<checkpoint path> \
+  --dtype bfloat16 --host 0.0.0.0 --port 8268 \
+  --enable-auto-tool-choice --tool-call-parser hermes \
+  --max-model-len 16384 \
+  --gpu_memory_utilization 0.9 \
+  --max-lora-rank 32
+#  --tensor-parallel-size 4
+```
+
+Then ensure `BASE_URL="http://localhost:8268/v1"` in `.env`.
+
+
+
 ### 1. Configure Environment Variables
 
 Create a `.env` file in your project root with the following settings:
@@ -95,28 +120,6 @@ python eval_summary_args.py --pred_path "$PRED_PATH"  # Concise summary report
 
 ---
 
-### 4. (Optional) Serve Your Model First
-
-If you're evaluating a local vLLM model (not GPT), start the server first:
-
-```bash
-
-export HF_HOME=/mnt/data/huggingface
-
-#CUDA_VISIBLE_DEVICES=0 vllm serve unsloth/Qwen3-4B-Instruct-2507  \
-vllm serve <base model>  \
-  --enable-lora \
-  --lora-modules \
-  <check point name>=<checkpoint path> \
-  --dtype bfloat16 --host 0.0.0.0 --port 8268 \
-  --enable-auto-tool-choice --tool-call-parser hermes \
-  --max-model-len 16384 \
-  --gpu_memory_utilization 0.9 \
-  --max-lora-rank 32
-#  --tensor-parallel-size 4
-```
-
-Then ensure `BASE_URL="http://localhost:8268/v1"` in `.env`.
 
 ---
 
