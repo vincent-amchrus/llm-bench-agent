@@ -96,7 +96,10 @@ async def process_case_async(
     skip_on_error: bool,
     output_path: str,
     enable_thinking: bool = False,
-    use_toon_format: bool = False
+    use_toon_format: bool = False,
+    temperature: float = 0.7,
+    top_p: float = 0.8,
+    presence_penalty: float = 1.5,
 ) -> bool:
     try:
         pred_raw = await chat_completion_async(
@@ -108,8 +111,9 @@ async def process_case_async(
             system_prompt=system_prompt,
             use_toon_format=use_toon_format,
             enable_thinking=enable_thinking,
-            # temperature=0.0,
-            temperature=0.7, top_p=0.8, presence_penalty=1.5
+            temperature=temperature,
+            top_p=top_p,
+            presence_penalty=presence_penalty,
         )
         error = None
     except Exception as e:
@@ -117,7 +121,8 @@ async def process_case_async(
             pred_raw = {
                 "content": None,
                 "tool_calls": [],
-                "usage": {}
+                "usage": {},
+                "reasoning": None
             }
             error = str(e)
         else:
@@ -131,6 +136,7 @@ async def process_case_async(
         "_source_file": case.get("_source_file", ""),
         "expected": case.get("tool_calls", []),
         "predicted": {
+            "reasoning": pred_raw.get("reasoning", ""),
             "content": pred_raw.get("content", ""),
             "tool_calls": pred_raw.get("tool_calls", []),
             "error": error,
@@ -159,6 +165,10 @@ async def main_async():
     parser.add_argument("--max_concurrent", type=int, default=32, help="Max concurrent requests (default: 12)")
     parser.add_argument("--use_toon_format", action="store_true", help="Use Toon format")
     parser.add_argument("--enable_thinking", action="store_true", help="Enable thinking")
+    parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature")
+    parser.add_argument("--top_p", type=float, default=0.8, help="Nucleus sampling top_p")
+    parser.add_argument("--presence_penalty", type=float, default=1.5, help="Presence penalty")
+  
     args = parser.parse_args()
     model = args.model
 
@@ -212,7 +222,10 @@ async def main_async():
                 skip_on_error=args.skip_on_error,
                 output_path=args.output,
                 enable_thinking=args.enable_thinking,
-                use_toon_format=args.use_toon_format
+                use_toon_format=args.use_toon_format,
+                temperature=args.temperature,
+                top_p=args.top_p,
+                presence_penalty=args.presence_penalty
             )
 
     # 🚀 Run with progress bar
