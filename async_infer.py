@@ -95,6 +95,7 @@ async def process_case_async(
     system_prompt: str | None,
     skip_on_error: bool,
     output_path: str,
+    enable_thinking: bool = False,
     use_toon_format: bool = False
 ) -> bool:
     try:
@@ -106,6 +107,7 @@ async def process_case_async(
             tools=tools,
             system_prompt=system_prompt,
             use_toon_format=use_toon_format,
+            enable_thinking=enable_thinking,
             # temperature=0.0,
             temperature=0.7, top_p=0.8, presence_penalty=1.5
         )
@@ -155,6 +157,7 @@ async def main_async():
     parser.add_argument("--skip_on_error", action="store_true", help="Continue on inference error")
     parser.add_argument("--max_concurrent", type=int, default=32, help="Max concurrent requests (default: 12)")
     parser.add_argument("--use_toon_format", action="store_true", help="Use Toon format")
+    parser.add_argument("--enable_thinking", action="store_true", help="Enable thinking")
 
     args = parser.parse_args()
     model = args.model
@@ -209,6 +212,7 @@ async def main_async():
                 system_prompt=args.system_prompt,
                 skip_on_error=args.skip_on_error,
                 output_path=args.output,
+                enable_thinking=args.enable_thinking,
                 use_toon_format=args.use_toon_format
             )
 
