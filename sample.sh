@@ -5,6 +5,6 @@
 
 
 python generate_sample_test.py \
-    --input data/groundtruth/global/_13k5_en_global_labeled.json \
-    --output data/groundtruth/global/_partial_1k_en_global_labeled.json \
-    --max_per_function 350
+    --input data/groundtruth/global/_partial_1k6_en_global_labeled.json \
+    --output data/groundtruth/global/_partial_10_en_global_labeled.json \
+    --max_per_function 2

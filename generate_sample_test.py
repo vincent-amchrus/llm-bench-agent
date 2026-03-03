@@ -53,14 +53,11 @@ def main():
 
     # Sample from non-null rows
     max_each_fn = args.max_per_function
-    sampled_non_null = (
-        df_with_values.groupby(args.function_col, group_keys=False)
-          .apply(lambda g: g.sample(n=min(len(g), max_each_fn), random_state=args.random_seed))
-          .reset_index(drop=True)
-    )
+    sampled_non_null = df_with_values.sample(frac=1).groupby(args.function_col).head(max_each_fn)
+    sampled_null = df_null_values.sample(frac=1).head(max_each_fn)
 
     # Combine sampled non-null rows with all null rows
-    sampled = pd.concat([sampled_non_null, df_null_values], ignore_index=True)
+    sampled = pd.concat([sampled_non_null, sampled_null], ignore_index=True)
 
     print(f"🎯 Sampled {len(sampled)} samples ({max_each_fn} max per function)")
     if len(df_null_values) > 0:

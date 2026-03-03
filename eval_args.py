@@ -1,3 +1,4 @@
+import statistics
 import argparse
 import json
 import pandas as pd
@@ -127,6 +128,9 @@ def parse_tool_call_list(tool_calls):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pred_path", type=str, required=True)
+    parser.add_argument("--model", type=str, default="")
+    parser.add_argument("--reasoning", type=str, default="")
+    parser.add_argument("--ccu", type=int, default=0)
     args = parser.parse_args()
 
     infer_path = Path(args.pred_path)
@@ -205,9 +209,12 @@ def main():
     # Markdown Content
     md_lines = [
         "# Tool-Call & Argument Evaluation Report",
-        f"**Timestamp**: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        f"**Total Samples**: {len(df)}",
-        f"**Tool Samples (for Args)**: {len(df_args)}",
+        f"**Timestamp**: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n",
+        f"**Total Samples**: {len(df)}\n",
+        f"**Tool Samples (for Args)**: {len(df_args)}\n",
+        f"**Model**: {args.model}\n",
+        f"**Reasoning**: {args.reasoning}\n",
+        f"**CCU**: {args.ccu}\n",
         "",
         "## 📊 Executive Summary",
         "| Metric | Score | Scope |",
@@ -217,9 +224,48 @@ def main():
         f"| **No-Call Accuracy** | `{no_call_acc:.2f}%` | Only where GT is No-Call |",
         f"| **Argument Accuracy** | `{avg_arg_acc:.2f}%` | Average on Tool samples |",
         "",
-        "## 🛠️ Per-Tool Argument Statistics"
+        "## Throughput Metrics",
     ]
 
+    throughput_metrics = [
+        ('exe_time', 'Execution Time (s)'),
+        ('output_token_per_seconds', 'Output Tokens/Sec'),
+        ('total_token_per_second', 'Total Tokens/Sec')
+    ]
+    # Extract values from df (assuming df has 'predicted' column with throughput dict)
+    vals = {}
+    for k, _ in throughput_metrics:
+        v = []
+        for _, row in df.iterrows():
+            try:
+                t = row['predicted']['throughput']
+                if k in t and t[k]: v.append(t[k])
+            except: pass
+        vals[k] = v
+
+    stats = [
+        ('Count', lambda x: len(x)),
+        ('Mean', statistics.mean),
+        ('Median', statistics.median),
+        ('Min', min),
+        ('Max', max),
+        ('Std Dev', lambda x: statistics.stdev(x) if len(x)>1 else 0),
+        ('Q25', lambda x: sorted(x)[len(x)//4]),
+        ('Q75', lambda x: sorted(x)[3*len(x)//4])
+    ]
+
+    md_lines.extend([
+        "",
+        "| Stat | Execution Time (s) | Output Tokens/Sec | Total Tokens/Sec |",
+        "| :--- | :--- | :--- | :--- |"
+    ])
+    for name, func in stats:
+        row = [f"{func(vals[k]):.2f}" if name!='Count' else str(func(vals[k])) for k,_ in throughput_metrics]
+        md_lines.append(f"| **{name}** | {row[0]} | {row[1]} | {row[2]} |")
+
+
+    md_lines.append("")
+    md_lines.append("## 🛠️ Per-Tool Argument Statistics")
     for tool, data in tool_stats.items():
         total = data['total']
         md_lines.append(f"### `{tool}`")

@@ -8,12 +8,15 @@ TEST_FILE="data/vivi_global/_partial_1k6_en_global_labeled.json"
 TEST_FILE="data/vivi_smart/_partial_6k4_vi_smart_labeled_0302.json"
 #TEST_FILE="data/vivi_global/_2k7_hindi_global_args_with_non_call.json"
 #TEST_FILE="data/vivi_global/_3k_bahasa_global_args_with_non_call.json"
+TEST_FILE="data/groundtruth/global/_partial_12_en_global_labeled.json"
 
 MODEL="Qwen/Qwen3.5-4B"
-REASONING="-reasoning"
+REASONING="-thinking"
+CCU=4
+
 # 🗂️ Predictions path (matches infer.py & evaluate.py logic)
 DATA_NAME=$(basename "$TEST_FILE" .json)
-SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')${REASONING}
+SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')${REASONING}_ccu_${CCU}
 
 PRED_PATH="results/${DATA_NAME}/${SAFE_MODEL}/predictions.ndjson"
 
@@ -26,7 +29,7 @@ python async_infer.py \
     --safe_model "$SAFE_MODEL" \
     --test_file "$TEST_FILE" \
     --skip_on_error \
-    --max_concurrent 256 \
+    --max_concurrent "$CCU" \
     --enable_thinking
     # --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32 --use_toon_format
 # python async_infer_gpt.py --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32
