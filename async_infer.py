@@ -105,8 +105,9 @@ async def process_case_async(
             api_key=api_key,
             tools=tools,
             system_prompt=system_prompt,
-            temperature=0.0,
-            use_toon_format=use_toon_format
+            use_toon_format=use_toon_format,
+            # temperature=0.0,
+            temperature=0.7, top_p=0.8, presence_penalty=1.5
         )
         error = None
     except Exception as e:
@@ -131,7 +132,8 @@ async def process_case_async(
             "content": pred_raw.get("content", ""),
             "tool_calls": pred_raw.get("tool_calls", []),
             "error": error,
-            "usage": pred_raw.get("usage", {})
+            "usage": pred_raw.get("usage", {}),
+            "throughput": pred_raw.get("throughput", {})  
         },
         "timestamp": datetime.now().isoformat()
     }

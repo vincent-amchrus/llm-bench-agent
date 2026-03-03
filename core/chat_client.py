@@ -1,4 +1,5 @@
 # core/chat_client.py
+import time
 import json
 from typing import List, Dict, Optional, Union
 from urllib import response
@@ -244,6 +245,7 @@ async def chat_completion_async(
     temperature: float = 0.0,
     max_tokens: Optional[int] = None,
     use_toon_format: bool = False,
+    enable_thinking: bool = False,
     **other_kwargs
 ) -> Dict:
     """
@@ -265,7 +267,7 @@ async def chat_completion_async(
         "max_tokens": max_tokens,
         "extra_body": {
             "chat_template_kwargs": {
-                "enable_thinking": False
+                "enable_thinking": enable_thinking
             }
         }
     }
@@ -281,27 +283,55 @@ async def chat_completion_async(
     # =========================
     # print(kwargs) 
     try:
+        start_time = time.perf_counter()
         response = await client.chat.completions.create(**kwargs)
+        end_time = time.perf_counter()
+        exe_time = end_time - start_time 
     except Exception as e:
+        end_time = time.perf_counter()    # <--- ADD THIS (for error case)
+        exe_time = end_time - start_time 
         return {
             "error": str(e),
             "content": None,
+            "reasoning": None,
             "tool_calls": [],
-            "usage": {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None}
+            "usage": {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None},
+            "throughput": {               # <--- ADD THIS
+                "exe_time": exe_time,
+                "output_token_per_seconds": None,
+                "total_token_per_second": None
+            }
         }
 
     # Parse response
     msg = response.choices[0].message
     usage = getattr(response, "usage", None)
 
+    prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+    completion_tokens = getattr(usage, "completion_tokens", 0) or 0
+    total_tokens = getattr(usage, "total_tokens", 0) or 0
+
+    # <--- ADD CALCULATION LOGIC HERE
+    if exe_time > 0:
+        output_token_per_seconds = completion_tokens / exe_time
+        total_token_per_second = total_tokens / exe_time
+    else:
+        output_token_per_seconds = 0.0
+        total_token_per_second = 0.0
     result = {
         "content": msg.content or "",
+        "reasoning": msg.reasoning,
         "usage": {
             "prompt_tokens": getattr(usage, "prompt_tokens", None),
             "completion_tokens": getattr(usage, "completion_tokens", None),
             "total_tokens": getattr(usage, "total_tokens", None),
         },
-        "tool_calls": []
+        "tool_calls": [],
+        "throughput": {
+            "exe_time": round(exe_time, 2),
+            "output_token_per_seconds": round(output_token_per_seconds, 2),
+            "total_token_per_second": round(total_token_per_second, 2)
+        }
     }
 
     # print("Result1", result)
