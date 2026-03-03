@@ -128,10 +128,13 @@ def parse_tool_call_list(tool_calls):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pred_path", type=str, required=True)
-    parser.add_argument("--model", type=str, default="")
-    parser.add_argument("--reasoning", type=str, default="")
-    parser.add_argument("--ccu", type=int, default=0)
+    parser.add_argument("--model", type=str, default="", required=True)
+    parser.add_argument("--reasoning", type=str, default="", required=True)
+    parser.add_argument("--ccu", type=int, default=0, required=True)
     args = parser.parse_args()
+
+    print("Reasoning:", args.reasoning)
+    print("CCU:", args.ccu)
 
     infer_path = Path(args.pred_path)
     output_dir = infer_path.parent
