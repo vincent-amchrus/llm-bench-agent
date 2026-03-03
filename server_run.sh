@@ -10,20 +10,24 @@ TEST_FILE="data/vivi_smart/_partial_6k4_vi_smart_labeled_0302.json"
 #TEST_FILE="data/vivi_global/_3k_bahasa_global_args_with_non_call.json"
 
 MODEL="Qwen/Qwen3.5-4B"
-REASONING="_reasoning"
+REASONING="-reasoning"
 # 🗂️ Predictions path (matches infer.py & evaluate.py logic)
 DATA_NAME=$(basename "$TEST_FILE" .json)
-SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')
+SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')${REASONING}
 
-
-PRED_PATH="results/${DATA_NAME}/${SAFE_MODEL}${REASONING}/predictions.ndjson"
+PRED_PATH="results/${DATA_NAME}/${SAFE_MODEL}/predictions.ndjson"
 
 echo "🚀 Running: MODEL=${MODEL}, TEST_FILE=${TEST_FILE}"
 
 #  1️⃣ Inference (resumable)
 # python infer.py --test_file "$TEST_FILE" --skip_on_error
 python async_infer.py \
-    --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 256 --enable_thinking
+    --model "$MODEL" \
+    --safe_model "$SAFE_MODEL" \
+    --test_file "$TEST_FILE" \
+    --skip_on_error \
+    --max_concurrent 256 \
+    --enable_thinking
     # --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32 --use_toon_format
 # python async_infer_gpt.py --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32
 

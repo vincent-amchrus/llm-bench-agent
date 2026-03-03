@@ -151,6 +151,7 @@ async def process_case_async(
 async def main_async():
     parser = argparse.ArgumentParser(description="Crash-safe, resumable inference (async)")
     parser.add_argument("--model", type=str, help="LLM Name")
+    parser.add_argument("--safe_model", type=str, help="Safe model name")
     parser.add_argument("--test_file", default="data/test_cases.json", help="Test cases JSON")
     parser.add_argument("--output", default=None, help="NDJSON output path")
     parser.add_argument("--system_prompt", default=None)
@@ -158,15 +159,13 @@ async def main_async():
     parser.add_argument("--max_concurrent", type=int, default=32, help="Max concurrent requests (default: 12)")
     parser.add_argument("--use_toon_format", action="store_true", help="Use Toon format")
     parser.add_argument("--enable_thinking", action="store_true", help="Enable thinking")
-
     args = parser.parse_args()
     model = args.model
 
     # 🔁 Same output path logic
     data_name = args.test_file.split("/")[-1].split('.json')[0]
     if args.output is None:
-        model_name = get_model_safe_name(model=model)
-        args.output = f"results/{data_name}/{model_name}/predictions.ndjson"
+        args.output = f"results/{data_name}/{args.safe_model}/predictions.ndjson"
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 
     # 🔁 Same config loading
