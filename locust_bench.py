@@ -66,23 +66,43 @@ def randomize_first_tool_name(tools: list) -> list:
     return tools
 
 
+# def get_next_sequential_sample():
+#     """
+#     Thread-safe function to get the next sample in order.
+#     Wraps around to the start when the end of the list is reached.
+#     """
+#     global _sample_index
+    
+#     with _index_lock:
+#         current_idx = _sample_index
+#         _sample_index += 1
+        
+#         if _sample_index >= _total_samples:
+#             # _sample_index = 0
+#             raise StopUser("All samples processed")  # Stop this virtual user
+            
+#     return TEST_SAMPLES[current_idx]
+
+import sys
+from locust import events
+
+_all_samples_processed = False
+
 def get_next_sequential_sample():
-    """
-    Thread-safe function to get the next sample in order.
-    Wraps around to the start when the end of the list is reached.
-    """
-    global _sample_index
+    global _sample_index, _all_samples_processed
     
     with _index_lock:
+        if _all_samples_processed:
+            events.quitting.fire(environment=None)  # Trigger shutdown
+            sys.exit(0)
+            
         current_idx = _sample_index
         _sample_index += 1
         
         if _sample_index >= _total_samples:
-            # _sample_index = 0
-            raise StopUser("All samples processed")  # Stop this virtual user
+            _all_samples_processed = True  # Mark completion
             
     return TEST_SAMPLES[current_idx]
-
 
 class ChatCompletionUser(HttpUser):
     wait_time = constant(0)
