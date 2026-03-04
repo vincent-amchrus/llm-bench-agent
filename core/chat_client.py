@@ -1,5 +1,4 @@
 # core/chat_client.py
-from wandb.proto.v3.wandb_telemetry_pb2 import Env
 import time
 import json
 from typing import List, Dict, Optional, Union
