@@ -45,31 +45,22 @@ _sample_index = 0
 _lock = threading.Lock()
 
 def get_next_sample():
-    """Returns (sample, is_last) or (None, False) if exhausted"""
     global _sample_index
     with _lock:
         if _sample_index >= TOTAL_SAMPLES:
-            return None, False
+            raise StopUser()
         idx = _sample_index
         _sample_index += 1
-        is_last = (_sample_index >= TOTAL_SAMPLES)
-    return TEST_SAMPLES[idx], is_last
+    return TEST_SAMPLES[idx]
 
 
 class ChatCompletionUser(HttpUser):
-    wait_time = constant(0.15)
+    wait_time = constant(0.15)          # ← very important: prevents endless stats printing
     host = BASE_URL
 
     @task
     def chat(self):
-        sample, is_last = get_next_sample()
-        
-        # 🛑 No more samples → stop the entire test run
-        if sample is None:
-            if self.environment and self.environment.runner:
-                print(f"✅ All {TOTAL_SAMPLES} samples processed. Stopping Locust runner...")
-                self.environment.runner.quit()
-            raise StopUser()
+        sample = get_next_sample()
 
         payload = {
             "model": MODEL_NAME,
@@ -94,8 +85,3 @@ class ChatCompletionUser(HttpUser):
                 r.failure(f"HTTP {r.status_code}")
             elif "choices" not in r.json():
                 r.failure("No choices in response")
-        
-        # 🛑 If this was the last sample, explicitly quit (extra safety)
-        if is_last and self.environment and self.environment.runner:
-            print(f"✅ Last sample processed. Stopping Locust runner...")
-            self.environment.runner.quit()
