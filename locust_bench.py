@@ -1,3 +1,4 @@
+# temp_locust_bench.py
 from locust import HttpUser, task, constant
 from locust.exception import StopUser
 import json
@@ -28,7 +29,8 @@ HEADERS = {"Content-Type": "application/json"}
 
 # Load data once
 def load_json(p): 
-    with open(p, encoding="utf-8") as f: return json.load(f)
+    with open(p, encoding="utf-8") as f: 
+        return json.load(f)
 
 TEST_SAMPLES = load_json(TEST_FILE)
 TOOLS        = load_json(TOOLS_FILE)
@@ -40,37 +42,59 @@ if TOTAL_SAMPLES == 0:
 
 print(f"Loaded {TOTAL_SAMPLES} samples from {TEST_FILE}")
 
-# Thread-safe sequential index
+# ================== Thread-safe state ==================
+# Sample assignment
 _sample_index = 0
-_lock = threading.Lock()
+_sample_lock = threading.Lock()
+
+# Completion tracking
+_completed_count = 0
+_completion_lock = threading.Lock()
+_all_done = threading.Event()  # Signals when all requests are fully completed
 
 def get_next_sample():
-    """Returns (sample, is_last) or (None, False) if exhausted"""
+    """Atomically assign the next sample index. Returns None if exhausted."""
     global _sample_index
-    with _lock:
+    with _sample_lock:
         if _sample_index >= TOTAL_SAMPLES:
-            return None, False
+            return None
         idx = _sample_index
         _sample_index += 1
-        is_last = (_sample_index >= TOTAL_SAMPLES)
-    return TEST_SAMPLES[idx], is_last
+    return TEST_SAMPLES[idx]
 
+def mark_completed(user_instance):
+    """Mark a request as completed. Trigger shutdown when all are done."""
+    global _completed_count
+    with _completion_lock:
+        _completed_count += 1
+        just_finished_all = (_completed_count >= TOTAL_SAMPLES)
+    
+    if just_finished_all:
+        print(f"✅ All {TOTAL_SAMPLES} requests COMPLETED. Stopping runner...")
+        _all_done.set()
+        # Safely trigger shutdown via the user's environment
+        if user_instance.environment and user_instance.environment.runner:
+            user_instance.environment.runner.quit()
 
+# ================== Locust User ==================
 class ChatCompletionUser(HttpUser):
-    wait_time = constant(0.15)
+    wait_time = constant(0.15)  # Small delay to avoid hammering the server
     host = BASE_URL
+    stop_timeout = 60  # Wait up to 60s for in-flight requests to finish on shutdown
 
     @task
     def chat(self):
-        sample, is_last = get_next_sample()
+        # Early exit if all requests are already completed
+        if _all_done.is_set():
+            raise StopUser()
         
-        # 🛑 No more samples → stop the entire test run
+        # Get next sample to process
+        sample = get_next_sample()
         if sample is None:
-            if self.environment and self.environment.runner:
-                print(f"✅ All {TOTAL_SAMPLES} samples processed. Stopping Locust runner...")
-                self.environment.runner.quit()
+            # No more samples to assign → exit this user
             raise StopUser()
 
+        # Build payload
         payload = {
             "model": MODEL_NAME,
             "messages": [{"role": "user", "content": sample["user_message"]}],
@@ -83,6 +107,7 @@ class ChatCompletionUser(HttpUser):
         if REASONING == "no-thinking":
             payload.setdefault("chat_template_kwargs", {})["enable_thinking"] = False
 
+        # Execute request
         with self.client.post(
             API_URL,
             json=payload,
@@ -94,8 +119,11 @@ class ChatCompletionUser(HttpUser):
                 r.failure(f"HTTP {r.status_code}")
             elif "choices" not in r.json():
                 r.failure("No choices in response")
+            # else: success (no explicit success() needed with catch_response=True)
         
-        # 🛑 If this was the last sample, explicitly quit (extra safety)
-        if is_last and self.environment and self.environment.runner:
-            print(f"✅ Last sample processed. Stopping Locust runner...")
-            self.environment.runner.quit()
+        # ✅ Mark this request as fully completed
+        mark_completed(self)
+        
+        # Final check: if we just completed the last one, exit cleanly
+        if _all_done.is_set():
+            raise StopUser()

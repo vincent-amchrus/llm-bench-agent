@@ -1,3 +1,4 @@
+cat locust_bench2.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -6,7 +7,8 @@ set -euo pipefail
 # ────────────────────────────────────────────────
 
 MODEL="Qwen/Qwen3.5-4B"
-BASE_URL="http://localhost:8268"
+MODEL="qwen3-4b-it-1102"
+MODEL="unsloth/Qwen3-4B-Instruct-2507"
 
 REASONING="no-thinking"           # or "thinking", "cot", etc.
 CCU=5                             # concurrent users
@@ -14,7 +16,6 @@ RAMP_UP_RATE=1                    # users spawned per second
 
 TEST_FILE="data/groundtruth/vivi_smart/_partial_9_vi_smart_labeled_0302.json"
 TEST_FILE="data/vivi_smart/_partial_1k_vi_smart_labeled_0302.json"
-
 TOOLS_FILE="data/tools/vivi_smart_tools.json"
 # ────────────────────────────────────────────────
 #  Derived values (usually no need to change)
@@ -55,7 +56,7 @@ if [ ! -f "$LOCUST_HTML" ]; then
         --loglevel INFO \
         --test-file "$TEST_FILE" \
         --tools-file "$TOOLS_FILE" \
-        --base-url "$BASE_URL" \
+        --base-url "http://localhost:8288" \
         --model "$MODEL" \
         --reasoning "$REASONING" \
         
