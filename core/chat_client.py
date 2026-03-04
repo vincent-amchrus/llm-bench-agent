@@ -1,4 +1,5 @@
 # core/chat_client.py
+from wandb.proto.v3.wandb_telemetry_pb2 import Env
 import time
 import json
 from typing import List, Dict, Optional, Union
@@ -320,7 +321,7 @@ async def chat_completion_async(
         total_token_per_second = 0.0
     result = {
         "content": msg.content or "",
-        "reasoning": msg.reasoning,
+        "reasoning": msg.reasoning if enable_thinking else None,
         "usage": {
             "prompt_tokens": getattr(usage, "prompt_tokens", None),
             "completion_tokens": getattr(usage, "completion_tokens", None),
