@@ -10,14 +10,11 @@ TEST_FILE="data/vivi_smart/_partial_6k4_vi_smart_labeled_0302.json"
 #TEST_FILE="data/vivi_global/_3k_bahasa_global_args_with_non_call.json"
 # TEST_FILE="data/groundtruth/global/_partial_12_en_global_labeled.json"
 TEST_FILE="data/vivi_smart/_partial_90_vi_smart_labeled_0302.json"
-MODEL="Qwen/Qwen3.5-4B"
+MODEL="senlm-4b-fc-vivi"
 REASONING="no-thinking"
 CCU=4
 
-TEMPERATURE=0.7
-TOP_P=0.8
-PRESENCE_PENALTY=1.5
-
+TEMPERATURE=0.1
 
 # 🗂️ Predictions path (matches infer.py & evaluate.py logic)
 DATA_NAME=$(basename "$TEST_FILE" .json)
@@ -36,8 +33,8 @@ python async_infer.py \
     --skip_on_error \
     --max_concurrent "$CCU" \
     --temperature "$TEMPERATURE" \
-    --top_p "$TOP_P" \
-    --presence_penalty "$PRESENCE_PENALTY" \
+    # --top_p "$TOP_P" \
+    # --presence_penalty "$PRESENCE_PENALTY" \
     # --enable_thinking
     # --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32 --use_toon_format
 # python async_infer_gpt.py --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32
