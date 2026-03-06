@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 Async Time-to-First-Token (TTFT) Benchmark Tool
-Measures TTFT for multiple prompts concurrently using streaming OpenAI API.
+✅ Timer starts BEFORE create()
+✅ TTFT triggered by: content OR tool_calls OR reasoning
+✅ All config via argparse (no hardcoded values)
 """
 
 import argparse
@@ -10,71 +12,83 @@ import json
 import time
 import sys
 from pathlib import Path
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional
 from openai import AsyncOpenAI
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    print("⚠️  Installing tqdm...", file=sys.stderr)
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "tqdm"])
+    from tqdm import tqdm
 
 
 async def measure_ttft_single(
     prompt: str,
     base_url: str,
     model: str,
-    api_key: str = "EMPTY",
-    enable_thinking: bool = False,
-    client: Optional[AsyncOpenAI] = None,
-    request_id: Optional[int] = None
+    api_key: str,
+    enable_thinking: bool,
+    tools: Optional[List[Dict]],
+    client: AsyncOpenAI,
+    request_id: int
 ) -> Dict:
-    """
-    Measure Time-to-First-Token for a single prompt using streaming.
+    """Measure TTFT for one prompt. Timer starts BEFORE create()."""
     
-    Returns dict with ttft, success status, and metadata.
-    """
-    # Create client per request if not provided (for connection isolation)
-    if client is None:
-        client = AsyncOpenAI(base_url=base_url, api_key=api_key)
-        close_client = True
-    else:
-        close_client = False
-
     result = {
         "request_id": request_id,
         "prompt_length": len(prompt),
+        "prompt_preview": prompt[:60] + "..." if len(prompt) > 60 else prompt,
         "ttft_seconds": None,
+        "first_token_type": None,
         "error": None,
         "success": False
     }
 
     try:
+        # ✅ CRITICAL: Start timer BEFORE API call
         start = time.perf_counter()
         
-        stream = await client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            extra_body={
-                "chat_template_kwargs": {
-                    "enable_thinking": enable_thinking
-                }
-            },
-            stream=True
-        )
+        create_kwargs = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": True,
+            "extra_body": {
+                "chat_template_kwargs": {"enable_thinking": enable_thinking}
+            }
+        }
+        if tools:
+            create_kwargs.update({"tools": tools, "tool_choice": "auto"})
         
-        # Iterate until first content token arrives
+        stream = await client.chat.completions.create(**create_kwargs)
+        
         async for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta.content:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            content = getattr(delta, 'content', None)
+            tool_calls = getattr(delta, 'tool_calls', None)
+            reasoning = getattr(delta, 'reasoning', None)
+            
+            # ✅ TTFT on first meaningful signal (content/tool_calls/reasoning)
+            if content or tool_calls or reasoning:
                 end = time.perf_counter()
-                result["ttft_seconds"] = round(end - start, 4)
-                result["success"] = True
+                result.update({
+                    "ttft_seconds": round(end - start, 4),
+                    "success": True,
+                    "first_token_type": (
+                        "reasoning" if reasoning else 
+                        "tool_calls" if tool_calls else 
+                        "content"
+                    )
+                })
                 break
         else:
-            # No tokens generated
-            result["error"] = "No tokens generated in stream"
+            result["error"] = "No tokens/tool_calls/reasoning in stream"
             
     except Exception as e:
-        result["error"] = str(e)
-        result["ttft_seconds"] = float('inf')
-        
-    finally:
-        if close_client:
-            await client.close()
+        result.update({"error": str(e), "ttft_seconds": float('inf')})
     
     return result
 
@@ -83,178 +97,178 @@ async def measure_ttft_batch(
     prompts: List[str],
     base_url: str,
     model: str,
-    api_key: str = "EMPTY",
-    enable_thinking: bool = False,
-    concurrency: int = 1
+    api_key: str,
+    enable_thinking: bool,
+    tools: Optional[List[Dict]],
+    concurrency: int,
+    show_progress: bool
 ) -> List[Dict]:
-    """
-    Measure TTFT for a batch of prompts with configurable concurrency.
-    """
-    # Create a shared client for better connection pooling
-    client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+    """Batch measurement with concurrency control + progress bar."""
     
-    # Create semaphore to limit concurrency
+    client = AsyncOpenAI(base_url=base_url, api_key=api_key)
     semaphore = asyncio.Semaphore(concurrency)
     
-    async def bounded_measure(prompt: str, idx: int) -> Dict:
+    async def bounded(prompt: str, idx: int) -> Dict:
         async with semaphore:
             return await measure_ttft_single(
-                prompt=prompt,
-                base_url=base_url,
-                model=model,
-                api_key=api_key,
-                enable_thinking=enable_thinking,
-                client=client,  # Reuse client
-                request_id=idx
+                prompt=prompt, base_url=base_url, model=model,
+                api_key=api_key, enable_thinking=enable_thinking,
+                tools=tools, client=client, request_id=idx
             )
     
     try:
-        tasks = [
-            bounded_measure(prompt, idx) 
-            for idx, prompt in enumerate(prompts)
-        ]
-        results = await asyncio.gather(*tasks)
+        tasks = [bounded(p, i) for i, p in enumerate(prompts)]
+        results = []
+        
+        if show_progress:
+            with tqdm(total=len(tasks), desc="⏱️ TTFT", unit="req", 
+                     bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}]') as pbar:
+                for coro in asyncio.as_completed(tasks):
+                    r = await coro
+                    results.append(r)
+                    succ = sum(1 for x in results if x["success"])
+                    valid = [x["ttft_seconds"] for x in results if x["success"] and isinstance(x["ttft_seconds"], (int, float)) and x["ttft_seconds"] != float('inf')]
+                    avg = sum(valid)/len(valid) if valid else 0
+                    pbar.set_postfix_str(f"✓{succ} avg:{avg:.3f}s")
+                    pbar.update(1)
+        else:
+            results = await asyncio.gather(*tasks)
+        
+        results.sort(key=lambda x: x["request_id"])  # Preserve input order
         return results
     finally:
         await client.close()
 
 
-def load_prompts_from_json(file_path: str) -> List[str]:
-    """Load prompts from JSON file with format: [{'user_message': '...'}, ...]"""
-    with open(file_path, 'r', encoding='utf-8') as f:
+def load_prompts(path: str) -> List[str]:
+    """Load [{'user_message': '...'}, ...] format."""
+    with open(path, 'r', encoding='utf-8') as f:
         data = json.load(f)
-    
     if isinstance(data, list):
-        return [item.get('user_message', '') for item in data if 'user_message' in item]
-    elif isinstance(data, dict) and 'user_message' in data:
-        return [data['user_message']]
-    else:
-        raise ValueError(f"Unexpected JSON format in {file_path}. Expected list of {{'user_message': ...}}")
+        return [x["user_message"].strip() for x in data if x.get("user_message")]
+    elif isinstance(data, dict) and data.get("user_message"):
+        return [data["user_message"].strip()]
+    raise ValueError(f"Invalid format in {path}")
 
 
-def calculate_statistics(results: List[Dict]) -> Dict:
-    """Calculate TTFT statistics from results."""
-    successful = [r for r in results if r["success"] and r["ttft_seconds"] not in [None, float('inf')]]
-    
+def load_tools(path: Optional[str]) -> Optional[List[Dict]]:
+    """Load tools JSON if path provided and exists."""
+    if not path or not Path(path).exists():
+        return None
+    with open(path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def calc_stats(results: List[Dict]) -> Dict:
+    """Compute TTFT statistics."""
+    successful = [r for r in results if r["success"] and isinstance(r["ttft_seconds"], (int, float)) and r["ttft_seconds"] != float('inf')]
     if not successful:
-        return {
-            "total_requests": len(results),
-            "successful_requests": 0,
-            "failed_requests": len(results),
-            "ttft_stats": None
-        }
+        return {"total": len(results), "success": 0, "failed": len(results), "stats": None}
     
-    ttft_values = [r["ttft_seconds"] for r in successful]
-    ttft_values_sorted = sorted(ttft_values)
-    
+    vals = sorted(r["ttft_seconds"] for r in successful)
+    n = len(vals)
     return {
-        "total_requests": len(results),
-        "successful_requests": len(successful),
-        "failed_requests": len(results) - len(successful),
-        "ttft_stats": {
-            "min": round(min(ttft_values), 4),
-            "max": round(max(ttft_values), 4),
-            "mean": round(sum(ttft_values) / len(ttft_values), 4),
-            "median": round(ttft_values_sorted[len(ttft_values_sorted) // 2], 4),
-            "p90": round(ttft_values_sorted[int(len(ttft_values_sorted) * 0.9)], 4) if len(ttft_values_sorted) >= 10 else None,
-            "p99": round(ttft_values_sorted[int(len(ttft_values_sorted) * 0.99)], 4) if len(ttft_values_sorted) >= 100 else None
+        "total": len(results),
+        "success": len(successful),
+        "failed": len(results) - len(successful),
+        "stats": {
+            "min": round(min(vals), 4), "max": round(max(vals), 4),
+            "mean": round(sum(vals)/n, 4), "median": round(vals[n//2], 4),
+            "p90": round(vals[int(n*0.9)], 4) if n >= 10 else None,
+            "p99": round(vals[int(n*0.99)], 4) if n >= 100 else None,
+        },
+        "token_types": {
+            "content": sum(1 for r in successful if r.get("first_token_type")=="content"),
+            "tool_calls": sum(1 for r in successful if r.get("first_token_type")=="tool_calls"),
+            "reasoning": sum(1 for r in successful if r.get("first_token_type")=="reasoning"),
         }
     }
+
+
+def parse_args():
+    """Define argparse interface (all config passed from shell)."""
+    p = argparse.ArgumentParser(description="TTFT Benchmark (argparse-driven)")
+    
+    # Required
+    p.add_argument("--base-url", type=str, required=True, help="API base URL")
+    p.add_argument("--model", type=str, required=True, help="Model name")
+    p.add_argument("--input-file", type=str, required=True, help="Input JSON with prompts")
+    
+    # Optional with defaults
+    p.add_argument("--api-key", type=str, default="EMPTY", help="API key")
+    p.add_argument("--output-file", type=str, default="ttft_results.json", help="Output JSON path")
+    p.add_argument("--concurrency", type=int, default=1, help="Concurrent requests")
+    p.add_argument("--timeout", type=float, default=300.0, help="Per-request timeout (s)")
+    
+    # Flags
+    p.add_argument("--enable-thinking", action="store_true", help="Enable reasoning mode")
+    p.add_argument("--no-progress", action="store_true", help="Disable tqdm")
+    p.add_argument("--tools-file", type=str, default=None, help="Optional tools JSON path")
+    
+    return p.parse_args()
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Async TTFT Benchmark Tool")
-    parser.add_argument("--base-url", type=str, required=True, help="OpenAI-compatible API base URL")
-    parser.add_argument("--api-key", type=str, default="EMPTY", help="API key (default: EMPTY)")
-    parser.add_argument("--model", type=str, required=True, help="Model name to test")
-    parser.add_argument("--input-file", type=str, required=True, help="JSON file with prompts [{'user_message': '...'}]")
-    parser.add_argument("--output-file", type=str, default="ttft_results.json", help="Output JSON file path")
-    parser.add_argument("--concurrency", type=int, default=1, help="Number of concurrent requests (default: 1)")
-    parser.add_argument("--enable-thinking", action="store_true", help="Enable thinking mode in chat template")
-    parser.add_argument("--timeout", type=float, default=120.0, help="Per-request timeout in seconds")
+    args = parse_args()
     
-    args = parser.parse_args()
-    
-    # Validate input file
+    # Validate
     if not Path(args.input_file).exists():
-        print(f"Error: Input file not found: {args.input_file}", file=sys.stderr)
+        print(f"❌ Not found: {args.input_file}", file=sys.stderr)
         sys.exit(1)
     
-    # Load prompts
-    print(f"Loading prompts from {args.input_file}...")
-    prompts = load_prompts_from_json(args.input_file)
-    print(f"Loaded {len(prompts)} prompts")
+    prompts = load_prompts(args.input_file)
+    tools = load_tools(args.tools_file)
     
     if not prompts:
-        print("Error: No valid prompts found in input file", file=sys.stderr)
+        print("❌ No valid prompts in input file", file=sys.stderr)
         sys.exit(1)
     
-    # Run benchmark
-    print(f"Starting TTFT benchmark: {args.concurrency} concurrent requests")
-    print(f"Model: {args.model}, Base URL: {args.base_url}")
+    show_progress = not args.no_progress
+    print(f"🚀 Starting: {len(prompts)} prompts | {args.concurrency} CCU | {args.model}")
     
     start_total = time.perf_counter()
     
-    results = await asyncio.wait_for(
-        measure_ttft_batch(
-            prompts=prompts,
-            base_url=args.base_url,
-            model=args.model,
-            api_key=args.api_key,
-            enable_thinking=args.enable_thinking,
-            concurrency=args.concurrency
-        ),
-        timeout=args.timeout * len(prompts)  # Rough total timeout
-    )
+    try:
+        results = await asyncio.wait_for(
+            measure_ttft_batch(
+                prompts=prompts,
+                base_url=args.base_url,
+                model=args.model,
+                api_key=args.api_key,
+                enable_thinking=args.enable_thinking,
+                tools=tools,
+                concurrency=args.concurrency,
+                show_progress=show_progress
+            ),
+            timeout=args.timeout * max(1, len(prompts) // args.concurrency)
+        )
+    except asyncio.TimeoutError:
+        print(f"\n❌ Timeout after {args.timeout}s", file=sys.stderr)
+        sys.exit(2)
     
     total_time = time.perf_counter() - start_total
+    stats = calc_stats(results)
     
-    # Calculate and display statistics
-    stats = calculate_statistics(results)
+    # Report
+    print("\n" + "═"*60)
+    print(f"🏁 Done: {stats['success']}/{stats['total']} ✓ | {total_time:.1f}s total")
+    if stats["stats"]:
+        s = stats["stats"]
+        print(f"⏱️  TTFT: min={s['min']:.3f}s | mean={s['mean']:.3f}s | p90={s['p90'] or 'N/A'}")
+    print("═"*60)
     
-    print("\n" + "="*60)
-    print("TTFT Benchmark Results")
-    print("="*60)
-    print(f"Total requests:     {stats['total_requests']}")
-    print(f"Successful:         {stats['successful_requests']}")
-    print(f"Failed:             {stats['failed_requests']}")
-    
-    if stats["ttft_stats"]:
-        ttft = stats["ttft_stats"]
-        print(f"\nTTFT Statistics (seconds):")
-        print(f"  Min:    {ttft['min']}")
-        print(f"  Max:    {ttft['max']}")
-        print(f"  Mean:   {ttft['mean']}")
-        print(f"  Median: {ttft['median']}")
-        if ttft['p90']:
-            print(f"  P90:    {ttft['p90']}")
-        if ttft['p99']:
-            print(f"  P99:    {ttft['p99']}")
-    
-    print(f"\nTotal benchmark time: {round(total_time, 2)}s")
-    print("="*60)
-    
-    # Save detailed results
-    output_data = {
-        "config": {
-            "base_url": args.base_url,
-            "model": args.model,
-            "concurrency": args.concurrency,
-            "enable_thinking": args.enable_thinking,
-            "input_file": args.input_file
-        },
+    # Save
+    output = {
+        "config": {k: v for k, v in vars(args).items() if k != 'api_key'},
         "summary": stats,
         "total_time_seconds": round(total_time, 2),
+        "throughput_req_per_sec": round(stats["success"]/total_time, 2) if total_time > 0 else 0,
         "results": results
     }
-    
-    output_path = Path(args.output_file)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(output_data, f, indent=2, ensure_ascii=False)
-    
-    print(f"\nDetailed results saved to: {args.output_file}")
+    Path(args.output_file).parent.mkdir(parents=True, exist_ok=True)
+    with open(args.output_file, 'w', encoding='utf-8') as f:
+        json.dump(output, f, indent=2, ensure_ascii=False)
+    print(f"💾 Saved: {args.output_file}")
 
 
 if __name__ == "__main__":
