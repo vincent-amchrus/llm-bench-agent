@@ -10,9 +10,11 @@ TEST_FILE="data/vivi_smart/_partial_6k4_vi_smart_labeled_0302.json"
 #TEST_FILE="data/vivi_global/_3k_bahasa_global_args_with_non_call.json"
 # TEST_FILE="data/groundtruth/global/_partial_12_en_global_labeled.json"
 TEST_FILE="data/vivi_smart/_partial_90_vi_smart_labeled_0302.json"
+TEST_FILE="data/groundtruth/vivi_smart/_partial_1k_vi_smart_labeled_0302.json"
+
 
 MODEL="Qwen/Qwen3.5-4B"
-MODEL="qwen3-4b-it-1102"
+MODEL="senlm-4b-fc-vivi"
 REASONING="no-thinking"
 CCU=4
 
@@ -40,6 +42,7 @@ python async_infer.py \
     --temperature "$TEMPERATURE" \
     --top_p "$TOP_P" \
     --presence_penalty "$PRESENCE_PENALTY" \
+    # --system_prompt "Respond in the same language as the user.\n\nCall a tool ONLY when it is clearly necessary to answer correctly using one of the available tools.\n\nNormal chat, greetings, personal questions, jokes → no tool calls. Just reply normally.\n\nNever call a tool unnecessarily."
     # --enable_thinking
     # --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32 --use_toon_format
 # python async_infer_gpt.py --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32

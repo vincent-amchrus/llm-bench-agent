@@ -1,0 +1,88 @@
+{
+  "config": {
+    "base_url": "http://localhost:8268/v1",
+    "model": "Qwen/Qwen3.5-4B",
+    "concurrency": 4,
+    "enable_thinking": false,
+    "input_file": "data/groundtruth/vivi_smart/_partial_9_vi_smart_labeled_0302.json"
+  },
+  "summary": {
+    "total_requests": 9,
+    "successful_requests": 9,
+    "failed_requests": 0,
+    "ttft_stats": {
+      "min": 0.118,
+      "max": 0.4131,
+      "mean": 0.2526,
+      "median": 0.3271,
+      "p90": null,
+      "p99": null
+    }
+  },
+  "total_time_seconds": 0.88,
+  "results": [
+    {
+      "request_id": 0,
+      "prompt_length": 90,
+      "ttft_seconds": 0.4131,
+      "error": null,
+      "success": true
+    },
+    {
+      "request_id": 1,
+      "prompt_length": 41,
+      "ttft_seconds": 0.3501,
+      "error": null,
+      "success": true
+    },
+    {
+      "request_id": 2,
+      "prompt_length": 71,
+      "ttft_seconds": 0.3492,
+      "error": null,
+      "success": true
+    },
+    {
+      "request_id": 3,
+      "prompt_length": 43,
+      "ttft_seconds": 0.3529,
+      "error": null,
+      "success": true
+    },
+    {
+      "request_id": 4,
+      "prompt_length": 26,
+      "ttft_seconds": 0.1212,
+      "error": null,
+      "success": true
+    },
+    {
+      "request_id": 5,
+      "prompt_length": 65,
+      "ttft_seconds": 0.121,
+      "error": null,
+      "success": true
+    },
+    {
+      "request_id": 6,
+      "prompt_length": 42,
+      "ttft_seconds": 0.121,
+      "error": null,
+      "success": true
+    },
+    {
+      "request_id": 7,
+      "prompt_length": 46,
+      "ttft_seconds": 0.118,
+      "error": null,
+      "success": true
+    },
+    {
+      "request_id": 8,
+      "prompt_length": 25,
+      "ttft_seconds": 0.3271,
+      "error": null,
+      "success": true
+    }
+  ]
+}
