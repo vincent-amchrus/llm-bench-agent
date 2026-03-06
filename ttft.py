@@ -28,4 +28,4 @@ def get_ttft(base_url: str, model: str, api_key: str = "EMPTY", prompt: str = "H
 
 # Usage Example
 ttft = get_ttft("http://localhost:8268/v1", "Qwen/Qwen3.5-4B")
-print(f"Time to First Token: {ttft}s")
+print(f"Time to First Token: {ttft}s") 
