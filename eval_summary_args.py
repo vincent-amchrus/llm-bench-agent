@@ -124,6 +124,18 @@ def parse_tool_call_list(tool_calls):
         return tool_calls.get('tool_calls', [])
     return tool_calls if isinstance(tool_calls, list) else []
 
+def safe_stat(values, func, default="N/A", min_len=1):
+    """Safely compute a statistic, returning default if insufficient data."""
+    if not isinstance(values, list) or len(values) < min_len:
+        return default
+    try:
+        result = func(values)
+        return f"{result:.2f}" if isinstance(result, (int, float)) else str(result)
+    except Exception:
+        return default
+
+
+
 # --- MAIN EXECUTION ---
 
 def main():
@@ -235,15 +247,24 @@ def main():
         ('total_token_per_second', 'Total Tokens/Sec')
     ]
     # Extract values from df (assuming df has 'predicted' column with throughput dict)
-    vals = {}
-    for k, _ in throughput_metrics:
-        v = []
-        for _, row in df.iterrows():
-            try:
-                t = row['predicted']['throughput']
-                if k in t and t[k]: v.append(t[k])
-            except: pass
-        vals[k] = v
+    vals = {k: [] for k, _ in throughput_metrics}  # Initialize all
+
+    for _, row in df.iterrows():
+        try:
+            predicted = row.get('predicted', {})
+            if not isinstance(predicted, dict):
+                continue
+            throughput = predicted.get('throughput', {})
+            if not isinstance(throughput, dict):
+                continue
+            for k, _ in throughput_metrics:
+                val = throughput.get(k)
+                if val is not None and isinstance(val, (int, float)):
+                    vals[k].append(val)
+        except (KeyError, TypeError, AttributeError) as e:
+            # Optional: log warning instead of silent fail
+            # print(f"Warning: skipping row due to {e}")
+            continue
 
     stats = [
         ('Count', lambda x: len(x)),
@@ -261,10 +282,14 @@ def main():
         "| Stat | Execution Time (s) | Output Tokens/Sec | Total Tokens/Sec |",
         "| :--- | :--- | :--- | :--- |"
     ])
-    for name, func in stats:
-        row = [f"{func(vals[k]):.2f}" if name!='Count' else str(func(vals[k])) for k,_ in throughput_metrics]
-        md_lines.append(f"| **{name}** | {row[0]} | {row[1]} | {row[2]} |")
 
+    for name, func in stats:
+        min_len = 2 if func == statistics.stdev else 1  # stdev needs ≥2 points
+        row = [
+            safe_stat(vals[k], func, default="N/A", min_len=min_len)
+            for k, _ in throughput_metrics
+        ]
+        md_lines.append(f"| **{name}** | {row[0]} | {row[1]} | {row[2]} |")
 
     md_lines.append("")
     md_lines.append("## 🛠️ Per-Tool Argument Statistics")
