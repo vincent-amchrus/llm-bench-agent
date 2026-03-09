@@ -61,7 +61,7 @@ def convert_entry(entry: dict, new_index: int) -> dict:
         "user_message": user_msg,
         "_source_sheet": entry.get("_source_sheet"),
         "_source_file": entry.get("_source_file"),
-        "expected": [],               # ← you didn't provide expected → left empty
+        "expected": entry.get("expected", []),
         "predicted": predicted_converted,
         "timestamp": entry.get("timestamp"),
         "error": entry.get("error"),

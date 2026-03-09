@@ -174,6 +174,7 @@ class ChatCompletionUser(HttpUser):
             "user_message": sample["user_message"],
             "_source_sheet": sample.get("_source_sheet", ""),
             "_source_file": sample.get("_source_file", ""),
+            "expected": sample.get("tool_calls"),
             "model": MODEL_NAME,
             "reasoning": REASONING,
             "timestamp": datetime.now().isoformat(),
