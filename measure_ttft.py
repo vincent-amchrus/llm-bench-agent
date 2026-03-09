@@ -121,8 +121,7 @@ async def measure_ttft_batch(
         results = []
         
         if show_progress:
-            with tqdm(total=len(tasks), desc="⏱️ TTFT", unit="req", 
-                     bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}]') as pbar:
+            with tqdm(total=len(tasks), desc="⏱️ TTFT", unit="req") as pbar:
                 for coro in asyncio.as_completed(tasks):
                     r = await coro
                     results.append(r)

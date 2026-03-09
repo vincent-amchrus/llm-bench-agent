@@ -9,6 +9,10 @@ from typing import Optional, Dict, Any
 # CONFIGURATION
 # ────────────────────────────────────────────────
 BASE_DIR = "results/_partial_1k_vi_smart_labeled_0302"
+
+OUTPUT_DIR = "results/_partial_1k_vi_smart_labeled_0302/locust_aggregate"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
 CSV_FILENAME = "locust_stats_stats.csv"  # adjust if your file is named differently
 
 PERCENTILES_TO_SHOW = ["50%", "66%", "75%", "80%", "90%", "95%", "98%", "99%", "100%"]
@@ -127,9 +131,12 @@ for ccu, group in df.groupby("CCU", sort=True):
     print("\n")
 
 # Optional: save full comparison as CSV and Markdown
-df.to_csv("latency_comparison_all_ccu.csv", index=False)
 
-with open("latency_comparison_by_ccu.md", "w", encoding="utf-8") as f:
+csv_output_path = os.path.join(OUTPUT_DIR, "latency_comparison_all_ccu.csv")
+md_output_path = os.path.join(OUTPUT_DIR, "latency_comparison_all_ccu.md")
+df.to_csv(csv_output_path, index=False)
+
+with open(md_output_path, "w", encoding="utf-8") as f:
     f.write("# Locust Latency Comparison – Different Models @ Same CCU\n\n")
     for ccu, group in df.groupby("CCU", sort=True):
         f.write(f"## CCU = {ccu}\n\n")
@@ -137,5 +144,5 @@ with open("latency_comparison_by_ccu.md", "w", encoding="utf-8") as f:
         f.write("\n\n")
 
 print("\nSaved:")
-print("  • latency_comparison_all_ccu.csv")
-print("  • latency_comparison_by_ccu.md")
+print(f"  • {csv_output_path}")
+print(f"  • {md_output_path}")
