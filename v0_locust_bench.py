@@ -1,23 +1,17 @@
 # temp_locust_bench.py
-from datetime import datetime
-
 from locust import HttpUser, task, constant
 from locust.exception import StopUser
 import json
 import threading
 import argparse
 import sys
-import os
-from pathlib import Path
 
 # ================== Argument parsing ==================
 parser = argparse.ArgumentParser()
 parser.add_argument("--test-file",    type=str, required=True)
 parser.add_argument("--tools-file",   type=str, required=True)
-parser.add_argument("--result-dir",   type=str, required=True)
 parser.add_argument("--base-url",     type=str, required=True)
 parser.add_argument("--model",        type=str, required=True)
-parser.add_argument("--api_key",        type=str, required=True)
 parser.add_argument("--reasoning",    type=str, required=True)
 
 args, unknown = parser.parse_known_args()
@@ -27,19 +21,11 @@ sys.argv = [sys.argv[0]] + unknown
 API_URL = "/v1/chat/completions"
 MODEL_NAME   = args.model
 BASE_URL     = args.base_url
-API_KEY      = args.api_key
 TEST_FILE    = args.test_file
-RESULT_DIR   = args.result_dir
 TOOLS_FILE   = args.tools_file
 REASONING    = args.reasoning
 
-# Output predictions to same folder as test file
-PREDICTIONS_FILE = os.path.join(RESULT_DIR, "raw_predictions.ndjson")
-
-HEADERS = {
-    "Content-Type": "application/json",
-    "Authorization": f"Bearer {API_KEY}"
-}
+HEADERS = {"Content-Type": "application/json"}
 
 # Load data once
 def load_json(p): 
@@ -55,7 +41,6 @@ if TOTAL_SAMPLES == 0:
     sys.exit(1)
 
 print(f"Loaded {TOTAL_SAMPLES} samples from {TEST_FILE}")
-print(f"Predictions will be saved to: {PREDICTIONS_FILE}")
 
 # ================== Thread-safe state ==================
 # Sample assignment
@@ -66,9 +51,6 @@ _sample_lock = threading.Lock()
 _completed_count = 0
 _completion_lock = threading.Lock()
 _all_done = threading.Event()  # Signals when all requests are fully completed
-
-# File writing lock
-_predictions_lock = threading.Lock()
 
 def get_next_sample():
     """Atomically assign the next sample index. Returns None if exhausted."""
@@ -93,27 +75,6 @@ def mark_completed(user_instance):
         # Safely trigger shutdown via the user's environment
         if user_instance.environment and user_instance.environment.runner:
             user_instance.environment.runner.quit()
-
-# ✅ Thread-safe atomic append (for multi-threaded Locust)
-def atomic_append_line(output_path: str, data: dict):
-    """Atomically append a JSON line to the output file."""
-    tmp_path = Path(output_path).with_suffix(f".tmp.{os.getpid()}.{threading.get_ident()}")
-    try:
-        # Write to tmp file
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
-            f.write("\n")
-        # Atomically append with lock
-        with _predictions_lock:
-            with open(output_path, "a", encoding="utf-8") as dst:
-                with open(tmp_path, "r", encoding="utf-8") as src:
-                    dst.write(src.read())
-    finally:
-        if tmp_path.exists():
-            try:
-                tmp_path.unlink()
-            except:
-                pass
 
 # ================== Locust User ==================
 class ChatCompletionUser(HttpUser):
@@ -147,7 +108,6 @@ class ChatCompletionUser(HttpUser):
             payload.setdefault("chat_template_kwargs", {})["enable_thinking"] = False
 
         # Execute request
-        response_json = None
         with self.client.post(
             API_URL,
             json=payload,
@@ -157,36 +117,9 @@ class ChatCompletionUser(HttpUser):
         ) as r:
             if r.status_code != 200:
                 r.failure(f"HTTP {r.status_code}")
-                response_data = {"error": f"HTTP {r.status_code}", "response_text": r.text}
             elif "choices" not in r.json():
                 r.failure("No choices in response")
-                response_data = {"error": "No choices in response", "response_text": r.text}
-            else:
-                response_json = r.json()
-                response_data = {
-                    "predicted": response_json['choices'][0]['message'],
-                    "usage": response_json.get("usage", {}),
-                }
-        
-        # ✅ Save prediction to file
-        prediction_record = {
-            "sample_index": _sample_index - 1,  # The index we just processed
-            "user_message": sample["user_message"],
-            "_source_sheet": sample.get("_source_sheet", ""),
-            "_source_file": sample.get("_source_file", ""),
-            "model": MODEL_NAME,
-            "reasoning": REASONING,
-            "timestamp": datetime.now().isoformat(),
-            
-        }
-        prediction_record.update(response_data)  # Add either the prediction or the error info
-        
-        # Add metadata if available
-        if response_json and "choices" in response_json:
-            prediction_record["usage"] = response_json.get("usage", {})
-            prediction_record["finish_reason"] = response_json["choices"][0].get("finish_reason") if response_json["choices"] else None
-        
-        atomic_append_line(PREDICTIONS_FILE, prediction_record)
+            # else: success (no explicit success() needed with catch_response=True)
         
         # ✅ Mark this request as fully completed
         mark_completed(self)

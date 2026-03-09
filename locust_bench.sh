@@ -7,13 +7,17 @@ set -euo pipefail
 
 MODEL="Qwen/Qwen3.5-4B"
 BASE_URL="http://localhost:8268"
+API_KEY="EMPTY"          # Set your API key if needed
+
+
+
 
 REASONING="no-thinking"           # or "thinking", "cot", etc.
-CCU=5                             # concurrent users
+CCU=1                             # concurrent users
 RAMP_UP_RATE=1                    # users spawned per second
 
 TEST_FILE="data/groundtruth/vivi_smart/_partial_9_vi_smart_labeled_0302.json"
-TEST_FILE="data/vivi_smart/_partial_1k_vi_smart_labeled_0302.json"
+#TEST_FILE="data/vivi_smart/_partial_1k_vi_smart_labeled_0302.json"
 
 TOOLS_FILE="data/tools/vivi_smart_tools.json"
 # ────────────────────────────────────────────────
@@ -50,6 +54,7 @@ if [ ! -f "$LOCUST_HTML" ]; then
         -u "$CCU" \
         -r "$RAMP_UP_RATE" \
         --html="$LOCUST_HTML" \
+        --result-dir="$RESULT_DIR" \
         --csv="$LOCUST_CSV_BASE" \
         --csv-full-history \
         --loglevel INFO \
@@ -57,6 +62,7 @@ if [ ! -f "$LOCUST_HTML" ]; then
         --tools-file "$TOOLS_FILE" \
         --base-url "$BASE_URL" \
         --model "$MODEL" \
+        --api_key "$API_KEY" \
         --reasoning "$REASONING" \
         
 else
@@ -79,3 +85,14 @@ else
     echo "Error: HTML report was not created." >&2
     exit 1
 fi
+
+
+echo "Normalized data generated"
+python norm_predictions_file.py --input "$RESULT_DIR/raw_predictions.ndjson" --output "${RESULT_DIR}/predictions.ndjson"
+
+echo "Run evaluation script on the generated predictions:"
+python eval_tool_calls.py --pred_path "${RESULT_DIR}/predictions.ndjson"
+
+python eval_args.py --pred_path "${RESULT_DIR}/predictions.ndjson" --model "$MODEL" --reasoning "$REASONING" --ccu "$CCU"
+
+python eval_summary_args.py --pred_path "${RESULT_DIR}/predictions.ndjson" --model "$MODEL" --reasoning "$REASONING" --ccu "$CCU"
