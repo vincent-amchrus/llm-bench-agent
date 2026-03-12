@@ -1,4 +1,3 @@
-cat locust_bench2.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -79,3 +78,15 @@ else
     echo "Error: HTML report was not created." >&2
     exit 1
 fi
+
+RESULT_DIR=
+
+echo "Normalized data generated"
+python norm_predictions_file.py --input "$RESULT_DIR/raw_predictions.ndjson" --output "${RESULT_DIR}/predictions.ndjson"
+
+echo "Run evaluation script on the generated predictions:"
+python eval_tool_calls.py --pred_path "${RESULT_DIR}/predictions.ndjson"
+
+python eval_args.py --pred_path "${RESULT_DIR}/predictions.ndjson" --model "$MODEL" --reasoning "$REASONING" --ccu "$CCU"
+
+python eval_summary_args.py --pred_path "${RESULT_DIR}/predictions.ndjson" --model "$MODEL" --reasoning "$REASONING" --ccu "$CCU"

@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+BASE_URL=
+API_KEY=
+MODEL=
 # 🔧 Auto-resolve (from env or fallback)
 
 TEST_FILE="data/vivi_global/_partial_1k6_en_global_labeled.json"
@@ -12,21 +15,15 @@ TEST_FILE="data/vivi_smart/_partial_6k4_vi_smart_labeled_0302.json"
 TEST_FILE="data/vivi_smart/_partial_90_vi_smart_labeled_0302.json"
 TEST_FILE="data/groundtruth/vivi_smart/_partial_1k_vi_smart_labeled_0302.json"
 TEST_FILE="data/groundtruth/vivi_smart/_11k_vi_smart_0903.json"
-TEST_FILE="data/groundtruth/vivi_smart/_11k_vi_smart_0903_given_tools.json"
+TEST_FILE="data/groundtruth/global/_partial_1k5_vi_global_labeled_2502.json"
 
-MODEL="Qwen/Qwen3.5-4B"
-MODEL="senlm-4b-fc-vivi"
-REASONING="no-thinking"
-CCU=10
-
-TEMPERATURE=0
-TOP_P=0.8
-PRESENCE_PENALTY=1.5
+MODEL="qwen-3-235b-a22b-instruct-2507"
+CCU=1
 
 
 #   Predictions path (matches infer.py & evaluate.py logic)
 DATA_NAME=$(basename "$TEST_FILE" .json)
-SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')_${REASONING}_ccu_${CCU}
+SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')_ccu_${CCU}
 echo "🚀 Running: SAFE_MODEL=${SAFE_MODEL}"
 PRED_PATH="results/${DATA_NAME}/${SAFE_MODEL}/predictions.ndjson"
 
@@ -34,15 +31,12 @@ echo "🚀 Running: MODEL=${MODEL}, TEST_FILE=${TEST_FILE}"
 
 #     nference (resumable)
 # python infer.py --test_file "$TEST_FILE" --skip_on_error
-python async_infer.py \
+python async_infer_cerebras.py \
     --model "$MODEL" \
     --safe_model "$SAFE_MODEL" \
     --test_file "$TEST_FILE" \
     --skip_on_error \
     --max_concurrent "$CCU" \
-    --temperature "$TEMPERATURE" \
-    --top_p "$TOP_P" \
-    --presence_penalty "$PRESENCE_PENALTY" \
     # --system_prompt "Respond in the same language as the user.\n\nCall a tool ONLY when it is clearly necessary to answer correctly using one of the available tools.\n\nNormal chat, greetings, personal questions, jokes → no tool calls. Just reply normally.\n\nNever call a tool unnecessarily."
     # --enable_thinking
     # --model "$MODEL" --test_file "$TEST_FILE" --skip_on_error --max_concurrent 32 --use_toon_format

@@ -4,22 +4,22 @@ set -euo pipefail
 # ────────────────────────────────────────────────
 #  Configuration - change these values as needed
 # ────────────────────────────────────────────────
-
-MODEL="Qwen/Qwen3.5-4B"
-BASE_URL="http://localhost:8268"
-API_KEY="EMPTY"          # Set your API key if needed
-
+# CEREBRAS API
+BASE_URL=
+API_KEY=
+MODEL=
 
 
 REASONING="no-thinking"           # or "thinking", "cot", etc.
-CCU=10                             # concurrent users
+CCU=5                             # concurrent users
 RAMP_UP_RATE=1                    # users spawned per second
 
-#TEST_FILE="data/vivi_smart/_partial_1k_vi_smart_labeled_0302.json"
-TEST_FILE="data/groundtruth/vivi_smart/_partial_1k_vi_smart_0903_given_tools.json"
+TEST_FILE="data/groundtruth/global/_partial_1k5_vi_global_labeled_2502.json"
+TOOLS_FILE="data/tools/vivi_global_tools2.json"
 
 TOOLS_FILE="data/tools/vivi_smart_tools_0903.json"
-TOOLS_FILE="data/tools/vivi_smart_tools.json"
+TEST_FILE="data/groundtruth/vivi_smart/_partial_1k_vi_smart_0903_given_tools.json"
+
 # ────────────────────────────────────────────────
 #  Derived values (usually no need to change)
 # ────────────────────────────────────────────────
@@ -28,7 +28,7 @@ SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')_${REASONING}
 DATA_NAME=$(basename "$TEST_FILE" .json)
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-RESULT_DIR="results/${DATA_NAME}/${SAFE_MODEL}_ccu_${CCU}_${TIMESTAMP}"
+RESULT_DIR="results/${DATA_NAME}/cerebras-${SAFE_MODEL}_ccu_${CCU}_${TIMESTAMP}"
 mkdir -p "$RESULT_DIR"
 
 LOCUST_HTML="${RESULT_DIR}/locust_report.html"
@@ -85,18 +85,3 @@ else
     echo "Error: HTML report was not created." >&2
     exit 1
 fi
-
-
-
-
-
-
-echo "Normalized data generated"
-python norm_predictions_file.py --input "$RESULT_DIR/raw_predictions.ndjson" --output "${RESULT_DIR}/predictions.ndjson"
-
-echo "Run evaluation script on the generated predictions:"
-python eval_tool_calls.py --pred_path "${RESULT_DIR}/predictions.ndjson"
-
-python eval_args.py --pred_path "${RESULT_DIR}/predictions.ndjson" --model "$MODEL" --reasoning "$REASONING" --ccu "$CCU"
-
-python eval_summary_args.py --pred_path "${RESULT_DIR}/predictions.ndjson" --model "$MODEL" --reasoning "$REASONING" --ccu "$CCU"
