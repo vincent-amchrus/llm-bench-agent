@@ -2,7 +2,6 @@
 import time
 import json
 from typing import List, Dict, Optional, Union
-from urllib import response
 from openai import OpenAI, AsyncOpenAI
 import toon_format
 

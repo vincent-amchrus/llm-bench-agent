@@ -143,7 +143,7 @@ class ChatCompletionUser(HttpUser):
             "max_tokens": 256,
         }
 
-        if REASONING == "no-thinking":
+        if REASONING == "no-thinking" and "cerebras" not in BASE_URL:
             payload.setdefault("chat_template_kwargs", {})["enable_thinking"] = False
 
         # Execute request

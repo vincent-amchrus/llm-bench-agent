@@ -76,6 +76,7 @@ def convert_file(input_path: str, output_path: str, start_index: int = 1):
     """
     # Create missing directories for output path
     output_dir = os.path.dirname(output_path)
+    print(output_dir)
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
 
