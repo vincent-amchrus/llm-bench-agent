@@ -1,19 +1,4 @@
-Ensure you served model using vLLM on the same node. For example at port 8268, key "EMPTY" (default none key)
-
-### Prepare `.env`
-
-BASE_URL="http://localhost:8268/v1"
-API_KEY="EMPTY"
-
-TOOL_PATH = "data/tools/vivi_smart_tools.json"
-TOOL_PATH = "data/tools/vivi_global_tools2.json"
-TOOL_PATH = "data/tools/vivi_smart_tools_0903.json"
-
-
-### Edit `eval_local.sh`
-
-
-```#!/bin/bash
+#!/bin/bash
 set -e
 
 # 🔧 Auto-resolve (from env or fallback)
@@ -79,8 +64,3 @@ python eval_tool_calls.py --pred_path "$PRED_PATH"
 python eval_args.py --pred_path "$PRED_PATH" --model "$MODEL" --reasoning "$REASONING" --ccu "$CCU"
 
 python eval_summary_args.py --pred_path "$PRED_PATH" --model "$MODEL" --reasoning "$REASONING" --ccu "$CCU"
-
-```
-
-
-### Run `bash eval_local.sh`

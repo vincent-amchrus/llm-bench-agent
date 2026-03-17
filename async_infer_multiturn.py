@@ -100,11 +100,10 @@ async def process_case_async(
     temperature: float = 0.7,
     top_p: float = 0.8,
     presence_penalty: float = 1.5,
-    message_column: str = "user_message"
 ) -> bool:
     try:
         pred_raw = await chat_completion_async(
-            messages=case[message_column],
+            messages=case["messages"],
             base_url=base_url,
             model=model,
             api_key=api_key,
@@ -133,6 +132,7 @@ async def process_case_async(
         "index": case.get("index", i),
         "input_hash": h,
         "user_message": case["user_message"],
+        # "user_message": case["user_message"],
         "_source_sheet": case.get("_source_sheet", ""),
         "_source_file": case.get("_source_file", ""),
         "expected": case.get("tool_calls", []),
@@ -169,7 +169,6 @@ async def main_async():
     parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature")
     parser.add_argument("--top_p", type=float, default=0.8, help="Nucleus sampling top_p")
     parser.add_argument("--presence_penalty", type=float, default=1.5, help="Presence penalty")
-    parser.add_argument("--message_column", type=str, default="user_message", help="Message column name")
   
     args = parser.parse_args()
     model = args.model
@@ -194,7 +193,7 @@ async def main_async():
 
     to_run: List[Tuple[int, Dict, str]] = []
     for i, case in enumerate(test_cases):
-        h = hash_input(json.dumps(case[args.message_column]))
+        h = hash_input(case["user_message"])
         if h not in processed_hashes:
             processed_hashes.add(h)
             to_run.append((i, case, h))
@@ -227,8 +226,7 @@ async def main_async():
                 use_toon_format=args.use_toon_format,
                 temperature=args.temperature,
                 top_p=args.top_p,
-                presence_penalty=args.presence_penalty,
-                message_column=args.message_column
+                presence_penalty=args.presence_penalty
             )
 
     # 🚀 Run with progress bar
