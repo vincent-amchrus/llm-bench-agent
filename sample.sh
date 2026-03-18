@@ -5,6 +5,6 @@
 
 
 python generate_sample_test.py \
-    --input data/groundtruth/vivi_smart/_partial_6k4_vi_smart_labeled_0302.json \
-    --output data/groundtruth/vivi_smart/_partial_9_vi_smart_labeled_0302.json \
+    --input data/robot/_4k7_robot_safari_fc.json \
+    --output data/robot/_partial_5_robot_safari_fc.json \
     --max_per_function 1

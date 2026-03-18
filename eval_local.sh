@@ -17,12 +17,19 @@ TEST_FILE="data/groundtruth/vivi_smart/_11k_vi_smart_0903_given_tools.json"
 TEST_FILE="data/groundtruth/vivi_smart/multiturn/_partial_20_vi_smart_0903_given_tools.json"
 TEST_FILE="data/groundtruth/vivi_smart/multiturn/_partial_1028_vi_smart_0903_given_tools.json"
 
+TEST_FILE="data/groundtruth/vivi_smart/_partial_9_vi_smart_labeled_0302.json"
+TEST_FILE="data/robot/_partial_5_robot_safari_fc.json"
+TEST_FILE="data/robot/_4k7_robot_safari_fc.json"
+
+
+TOOL_CHOICE="required"
+
+
 MESSAGE_COL="user_message"
 #MESSAGE_COL="messages"
-MESSAGE_COL="messages_with_ground_truth_tools_history"
+# MESSAGE_COL="messages_with_ground_truth_tools_history"
 
 
-MODEL="Qwen/Qwen3.5-4B"
 MODEL="senlm-4b-fc-vivi"
 
 REASONING="no-thinking"
@@ -35,7 +42,7 @@ PRESENCE_PENALTY=1.5
 
 #   Predictions path (matches infer.py & evaluate.py logic)
 DATA_NAME=$(basename "$TEST_FILE" .json)
-SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')_${REASONING}_ccu_${CCU}_${MESSAGE_COLS}
+SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')_${REASONING}_ccu_${CCU}_${MESSAGE_COL}_${TOOL_CHOICE}
 echo "🚀 Running: SAFE_MODEL=${SAFE_MODEL}"
 PRED_PATH="results/${DATA_NAME}/${SAFE_MODEL}/predictions.ndjson"
 
@@ -54,7 +61,8 @@ python async_infer.py \
     --temperature "$TEMPERATURE" \
     --top_p "$TOP_P" \
     --presence_penalty "$PRESENCE_PENALTY" \
-    --message_column "$MESSAGE_COL"
+    --message_column "$MESSAGE_COL" \
+    --tool_choice "$TOOL_CHOICE"
     # --enable_thinking \
     # --system_prompt "Respond in the same language as the user.\n\nCall a tool ONLY when it is clearly necessary to answer correctly using one of the available tools.\n\nNormal chat, greetings, personal questions, jokes → no tool calls. Just reply normally.\n\nNever call a tool unnecessarily."
 

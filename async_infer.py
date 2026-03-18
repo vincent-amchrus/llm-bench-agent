@@ -97,10 +97,11 @@ async def process_case_async(
     output_path: str,
     enable_thinking: bool = False,
     use_toon_format: bool = False,
-    temperature: float = 0.7,
+    temperature: float = 0.3,
     top_p: float = 0.8,
     presence_penalty: float = 1.5,
-    message_column: str = "user_message"
+    message_column: str = "user_message",
+    tool_choice: str = "auto"
 ) -> bool:
     try:
         pred_raw = await chat_completion_async(
@@ -115,6 +116,7 @@ async def process_case_async(
             temperature=temperature,
             top_p=top_p,
             presence_penalty=presence_penalty,
+            tool_choice=tool_choice,
         )
         error = None
     except Exception as e:
@@ -170,6 +172,7 @@ async def main_async():
     parser.add_argument("--top_p", type=float, default=0.8, help="Nucleus sampling top_p")
     parser.add_argument("--presence_penalty", type=float, default=1.5, help="Presence penalty")
     parser.add_argument("--message_column", type=str, default="user_message", help="Message column name")
+    parser.add_argument("--tool_choice", type=str, default="auto", help="Tool choice")
   
     args = parser.parse_args()
     model = args.model
