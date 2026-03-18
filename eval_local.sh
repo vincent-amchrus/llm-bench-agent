@@ -24,6 +24,7 @@ TEST_FILE="data/robot/_4k7_robot_safari_fc.json"
 
 TOOL_CHOICE="required"
 
+NOTE="5-tools"
 
 MESSAGE_COL="user_message"
 #MESSAGE_COL="messages"
@@ -42,7 +43,7 @@ PRESENCE_PENALTY=1.5
 
 #   Predictions path (matches infer.py & evaluate.py logic)
 DATA_NAME=$(basename "$TEST_FILE" .json)
-SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')_${REASONING}_ccu_${CCU}_${MESSAGE_COL}_${TOOL_CHOICE}
+SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')_${REASONING}_ccu_${CCU}_${MESSAGE_COL}_${TOOL_CHOICE}_${NOTE}
 echo "🚀 Running: SAFE_MODEL=${SAFE_MODEL}"
 PRED_PATH="results/${DATA_NAME}/${SAFE_MODEL}/predictions.ndjson"
 

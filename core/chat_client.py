@@ -275,7 +275,7 @@ async def chat_completion_async(
             kwargs.update({"tools": tools, "tool_choice": tool_choice})
     kwargs.update(other_kwargs)
     # =========================
-    # json.dump(kwargs, open("data/debug.json", "w"))
+    #json.dump(kwargs, open("data/debug.json", "w"), indent=4, ensure_ascii=False)
     try:
         start_time = time.perf_counter()
         response = await client.chat.completions.create(**kwargs)
