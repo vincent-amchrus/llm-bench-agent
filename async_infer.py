@@ -231,7 +231,8 @@ async def main_async():
                 temperature=args.temperature,
                 top_p=args.top_p,
                 presence_penalty=args.presence_penalty,
-                message_column=args.message_column
+                message_column=args.message_column,
+                tool_choice=args.tool_choice
             )
 
     # 🚀 Run with progress bar

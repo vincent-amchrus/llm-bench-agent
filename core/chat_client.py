@@ -13,6 +13,7 @@ def chat_completion(
     model: str,
     api_key: str = "EMPTY",
     tools: Optional[List[Dict]] = None,
+    tool_choice: str = "auto",
     system_prompt: Optional[str] = None,
     temperature: float = 0.0,
     max_tokens: Optional[int] = None,
@@ -50,7 +51,7 @@ def chat_completion(
             system_prompt_message = get_system_message_with_tools(tools, fn_parse=parse_toon)
             kwargs["messages"] = [system_prompt_message] + messages
         else:
-            kwargs.update({"tools": tools, "tool_choice": "auto"})
+            kwargs.update({"tools": tools, "tool_choice": tool_choice})
     kwargs.update(other_kwargs)
     # =========================
     # print(kwargs) 
@@ -233,6 +234,7 @@ async def chat_completion_async(
     model: str,
     api_key: str = "EMPTY",
     tools: Optional[List[Dict]] = None,
+    tool_choice: str = "auto",
     system_prompt: Optional[str] = None,
     temperature: float = 0.0,
     max_tokens: Optional[int] = None,
@@ -270,10 +272,10 @@ async def chat_completion_async(
             system_prompt_message = get_system_message_with_tools(tools, fn_parse=parse_toon)
             kwargs["messages"] = [system_prompt_message] + messages
         else:
-            kwargs.update({"tools": tools, "tool_choice": "auto"})
+            kwargs.update({"tools": tools, "tool_choice": tool_choice})
     kwargs.update(other_kwargs)
     # =========================
-    # print(kwargs) 
+    # json.dump(kwargs, open("data/debug.json", "w"))
     try:
         start_time = time.perf_counter()
         response = await client.chat.completions.create(**kwargs)
