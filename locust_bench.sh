@@ -10,10 +10,10 @@ BASE_URL="http://localhost:8268"
 API_KEY="EMPTY"          # Set your API key if needed
 
 MODEL="qwen3-4b-it-1102"
-
+MESSAGE_COL="user_message"
 
 REASONING="no-thinking"           # or "thinking", "cot", etc.
-CCU=10                             # concurrent users
+CCU=1                             # concurrent users
 RAMP_UP_RATE=1                    # users spawned per second
 
 TEST_FILE="data/groundtruth/vivi_smart/_partial_1k_vi_smart_0903_given_tools.json"
@@ -26,8 +26,8 @@ TOOLS_FILE="data/tools/vivi_smart_tools.json"
 # ────────────────────────────────────────────────
 
 
-NOTE="_L40s"
 NOTE="_RTX_3090_vllm_0.17.1"
+NOTE="_L40s"
 
 SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')_${REASONING}${NOTE}
 DATA_NAME=$(basename "$TEST_FILE" .json)
@@ -69,7 +69,7 @@ if [ ! -f "$LOCUST_HTML" ]; then
         --model "$MODEL" \
         --api_key "$API_KEY" \
         --reasoning "$REASONING" \
-        
+        --message_col "$MESSAGE_COL"
 else
     echo "HTML report already exists: $LOCUST_HTML"
 fi

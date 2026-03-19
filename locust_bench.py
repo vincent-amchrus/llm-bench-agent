@@ -19,6 +19,7 @@ parser.add_argument("--base-url",     type=str, required=True)
 parser.add_argument("--model",        type=str, required=True)
 parser.add_argument("--api_key",        type=str, required=True)
 parser.add_argument("--reasoning",    type=str, required=True)
+parser.add_argument("--message_col",    type=str, required=True)
 
 args, unknown = parser.parse_known_args()
 sys.argv = [sys.argv[0]] + unknown
@@ -26,6 +27,7 @@ sys.argv = [sys.argv[0]] + unknown
 # ================== CONFIG ==================
 API_URL = "/v1/chat/completions"
 MODEL_NAME   = args.model
+MESSAGE_COL   = args.message_col
 BASE_URL     = args.base_url
 API_KEY      = args.api_key
 TEST_FILE    = args.test_file
@@ -136,7 +138,7 @@ class ChatCompletionUser(HttpUser):
         # Build payload
         payload = {
             "model": MODEL_NAME,
-            "messages": [{"role": "user", "content": sample["user_message"]}],
+            "messages": [{"role": "user", "content": sample[MESSAGE_COL]}],
             "tools": TOOLS,
             "tool_choice": "auto",
             "temperature": 0,
