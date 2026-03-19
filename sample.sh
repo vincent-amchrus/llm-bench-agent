@@ -6,5 +6,5 @@
 
 python generate_sample_test.py \
     --input data/robot/_4k7_robot_safari_fc.json \
-    --output data/robot/_partial_5_robot_safari_fc.json \
-    --max_per_function 1
+    --output data/robot/_partial_1k_robot_safari_fc.json \
+    --max_per_function 200

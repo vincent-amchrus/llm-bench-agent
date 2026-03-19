@@ -134,20 +134,26 @@ class ChatCompletionUser(HttpUser):
         if sample is None:
             # No more samples to assign → exit this user
             raise StopUser()
-
+        if MESSAGE_COL == "user_message":
+            messages = [{"role": "user", "content": sample[MESSAGE_COL]}]
+        else:
+            messages = sample[MESSAGE_COL]
         # Build payload
         payload = {
             "model": MODEL_NAME,
-            "messages": [{"role": "user", "content": sample[MESSAGE_COL]}],
+            "messages": messages,
             "tools": TOOLS,
             "tool_choice": "auto",
             "temperature": 0,
             "max_tokens": 256,
         }
-
+        if "cerebras" in BASE_URL:
+            payload["reasoning"] = {"effort": REASONING}
+        
         if REASONING == "no-thinking" and "cerebras" not in BASE_URL:
             payload.setdefault("chat_template_kwargs", {})["enable_thinking"] = False
 
+        # json.dump(payload, open("payload.json", "w"), indent=4, ensure_ascii=False)
         # Execute request
         response_json = None
         with self.client.post(

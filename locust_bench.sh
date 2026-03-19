@@ -10,7 +10,10 @@ BASE_URL="http://localhost:8268"
 API_KEY="EMPTY"          # Set your API key if needed
 
 MODEL="qwen3-4b-it-1102"
+MESSAGE_COL="messages_with_ground_truth_tools_history"
 MESSAGE_COL="user_message"
+MESSAGE_COL="messages"
+
 
 REASONING="no-thinking"           # or "thinking", "cot", etc.
 CCU=1                             # concurrent users
@@ -21,6 +24,13 @@ TOOLS_FILE="data/tools/vivi_smart_tools_0903.json"
 
 TEST_FILE="data/groundtruth/vivi_smart/_partial_1k_vi_smart_labeled_0302.json"
 TOOLS_FILE="data/tools/vivi_smart_tools.json"
+
+
+
+TEST_FILE="data/groundtruth/vivi_smart/multiturn/_partial_1028_vi_smart_0903_given_tools.json"
+TEST_FILE="data/groundtruth/vivi_smart/multiturn/_partial_20_vi_smart_0903_given_tools.json"
+TOOLS_FILE="data/tools/vivi_smart_tools_0903.json"
+
 # ────────────────────────────────────────────────
 #  Derived values (usually no need to change)
 # ────────────────────────────────────────────────
