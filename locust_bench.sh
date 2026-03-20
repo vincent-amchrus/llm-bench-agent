@@ -31,6 +31,11 @@ TEST_FILE="data/groundtruth/vivi_smart/multiturn/_partial_1028_vi_smart_0903_giv
 TEST_FILE="data/groundtruth/vivi_smart/multiturn/_partial_20_vi_smart_0903_given_tools.json"
 TOOLS_FILE="data/tools/vivi_smart_tools_0903.json"
 
+
+
+TEST_FILE="data/qc_vivi_smart/_862_vivi_qc_2003_mrHao.json"
+TOOLS_FILE="data/qc_vivi_smart/_9_tools_mr_Hao.json"
+
 # ────────────────────────────────────────────────
 #  Derived values (usually no need to change)
 # ────────────────────────────────────────────────
@@ -39,7 +44,11 @@ TOOLS_FILE="data/tools/vivi_smart_tools_0903.json"
 NOTE="_RTX_3090_vllm_0.17.1"
 NOTE="_L40s"
 
-SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')_${REASONING}${NOTE}
+NOTE="_H100"
+NOTE="_RTX_3090_vllm_0.17.1"
+NOTE="_L40s"
+
+SAFE_MODEL=$(echo "$MODEL" | sed 's/[\/:]/-/g')_${REASONING}_${MESSAGE_COL}${NOTE}
 DATA_NAME=$(basename "$TEST_FILE" .json)
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)

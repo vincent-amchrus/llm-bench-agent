@@ -179,7 +179,7 @@ class ChatCompletionUser(HttpUser):
         # ✅ Save prediction to file
         prediction_record = {
             "sample_index": _sample_index - 1,  # The index we just processed
-            "user_message": sample["user_message"],
+            MESSAGE_COL: sample[MESSAGE_COL],
             "_source_sheet": sample.get("_source_sheet", ""),
             "_source_file": sample.get("_source_file", ""),
             "expected": sample.get("tool_calls"),
